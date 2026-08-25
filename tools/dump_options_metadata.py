@@ -121,6 +121,48 @@ PRESETS = [
         "values": {"vanilla_placement": "all", "death_link": True},
     },
     {
+        "id": "boss_rush",
+        "title": "Bosses Hold the Keys",
+        "tagline": "Every key item is a boss drop.",
+        "description": "Base game, and every progression item -- your Region Locks and any gate "
+                       "keys -- placed on a BOSS in a region you have already opened. Ordinary "
+                       "loot is untouched: chests, corpses and merchants still pay out what they "
+                       "would have. In a multiworld the same rule holds other players' progression, "
+                       "so an Elden Ring boss can be sitting on somebody else's way forward. This "
+                       "preset also pins every Region Lock in your OWN world, so the boss you have "
+                       "to kill is always one of yours. If you would rather your keys travelled to "
+                       "your partners, use Shared Fate below.",
+        # progression_bias 100 is stated because the preset's PROMISE is "your keys are on YOUR
+        # bosses". At the option default of 0 every Lock is released to the multiworld pool, so in a
+        # multiworld many of them sit on somebody ELSE's checks -- still curated, still on a boss,
+        # but not a boss of yours, which is not what the title says.
+        #
+        # confine_foreign_progression is the OTHER half of what this preset means and is deliberately
+        # NOT listed: it already defaults to 100, and validate_presets rejects any value equal to the
+        # default (presets carry deviations only). So the description carries it instead.
+        "values": {"enable_dlc": False, "boss_progression": "bosses",
+                   "progression_bias": 100},
+    },
+    {
+        "id": "shared_fate",
+        "title": "Shared Fate",
+        "tagline": "Your keys are in their world, and theirs are on your bosses.",
+        "description": "Bosses hold the keys, the same as Bosses Hold the Keys -- but your Region "
+                       "Locks are NOT pinned at home. They go into the multiworld, so the partner "
+                       "who opens Liurnia for you is another player, and the boss you kill is "
+                       "holding their way forward. Made for a co-op multiworld and pointless in a "
+                       "solo seed, where there is nowhere for anything to travel to.",
+        # ONE stated deviation, and that is the point rather than an omission. progression_bias
+        # already defaults to 0 (every Lock released), cross_game_progression already defaults to
+        # `auto` (each partner game gets its ~1/N share of the travellers), and the useful-item
+        # share is a derived reservation with no knob at all (features/export_reservation). So the
+        # travelling half of this preset IS the shipped default; what the preset actually adds is
+        # the boss surface. validate_presets rejects any value equal to a default, so listing the
+        # rest would fail the gate -- correctly, because it would be restating the defaults as
+        # though the preset were causing them.
+        "values": {"enable_dlc": False, "boss_progression": "bosses"},
+    },
+    {
         "id": "dlc_only",
         "title": "DLC Only (experimental)",
         "tagline": "Only the Shadow of the Erdtree regions.",

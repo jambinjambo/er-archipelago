@@ -83,8 +83,12 @@ def load_module_consts(path, names):
 
 
 def read_tsv(path):
+    # utf-8-SIG, not utf-8 -- gen_data pins the sig form on every curated tsv it reads (see its
+    # encoding note) and these are the same files. With plain utf-8 a BOM'd tsv does not fail
+    # loudly: the BOM defeats the `startswith("#")` skip, so the banner comment becomes the header
+    # row and every lookup KeyErrors somewhere far away. Cost one debugging cycle on 2026-08-24.
     rows = []
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         header = None
         for line in fh:
             if line.startswith("#"):

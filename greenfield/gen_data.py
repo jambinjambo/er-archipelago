@@ -998,8 +998,56 @@ for _bdf, _bde in _BOSS_DROP_ENTITY.items():
     _bdn = (_bdi[3] if _bdi and len(_bdi) > 3 else "") or ""
     if str(_bdn).strip():
         _BOSS_NAMES[int(_bdf)] = str(_bdn).strip()
-print("location desc: boss-drop names joined = %d of %d drop flag(s) (%d entity/entities unnamed)"
-      % (len(_BOSS_NAMES), len(_BOSS_DROP_ENTITY), len(_BOSS_DROP_ENTITY) - len(_BOSS_NAMES)))
+# ---- AND THE SECOND REWARD MECHANISM, for the SAME reason the TAG reads both ---------------------
+# The loop above joins `BOSS_DROP_ENTITY`, which is the common-boss-handler half of the two award
+# mechanisms `_BOSS_TAG_FLAGS` unions ~850 lines up. The tag learned in #_BOSS_TAG_FLAGS that reading
+# only that half undercounts by more than it counts; the DESCRIPTOR was still reading only that half.
+# So layer 2 named 75 flags where the tag covered 214, and the ones it missed were not obscure --
+# Godrick, Morgott, Rennala, Astel and Margit are all scripted-reward bosses.
+#
+# 🛑 THE KEY IS DIFFERENT, and that is the whole reason this is a second loop rather than a longer
+# first one. `BOSS_DROP_ENTITY` gives an ENTITY ID; `BOSS_REWARD_DEFEAT` gives a DEFEAT FLAG, which is
+# what BOSS_HEALTHBARS is actually keyed by (its docstring: "entity id != defeat flag for night/duo/
+# festival bosses"). The first join is therefore the loose one -- it works because entity == defeat
+# flag in the ordinary case -- and this one is exact.
+#
+# Measured on the committed tables: the two sets are COMPLETELY DISJOINT (0 shared flags, 0
+# disagreements), which is what gen_data's own `_BOSS_TAG_FLAGS` note predicts of the same two
+# corpora. The assertion below is still worth its four lines: disjointness is a property of today's
+# data, not of the derivation, and if the tables ever overlap with DIFFERENT names then one of them is
+# naming the wrong fight and the check would ship a label that sends the player at it.
+_reward_names, _boss_name_clash = {}, []
+for _brf, _brd in _BOSS_REWARD_DEFEAT.items():
+    _bri = BOSS_HEALTHBARS.get(_brd)
+    _brn = str((_bri[3] if _bri and len(_bri) > 3 else "") or "").strip()
+    if not _brn:
+        continue
+    if _BOSS_NAMES.get(int(_brf), _brn) != _brn:
+        _boss_name_clash.append((int(_brf), _BOSS_NAMES[int(_brf)], _brn))
+    _reward_names[int(_brf)] = _brn
+if _boss_name_clash:
+    raise SystemExit(
+        "gen_data: %d flag(s) resolve to TWO DIFFERENT bosses -- the drop-entity join and the "
+        "reward-flag join disagree, so one is naming the wrong fight:\n%s"
+        % (len(_boss_name_clash),
+           "\n".join("    flag %d: %r (drop join) vs %r (reward join)" % _c for _c in _boss_name_clash)))
+_BOSS_NAMES.update(_reward_names)
+# A HAND OVERRIDE THE DERIVATION NOW MAKES MUST GO -- same rule, same hard error, as
+# `_BOSS_DROP_EXTRAS`. Four rows (Elden Beast, Regal Ancestor Spirit, Divine Beast Dancing Lion,
+# Putrescent Knight) became redundant the moment the reward-flag join landed and were deleted from
+# location_descriptions.tsv in the same commit. A layer-1 row that DIFFERS is not redundant and is
+# not touched: 30 of them deliberately shorten the in-game name ("Morgott", not "Morgott, the Omen
+# King") because the item is already "Remembrance of the Omen King". Layer 1 winning is the point.
+_dead_desc = sorted(_f for _f, _n in _DESC_OVERRIDE.items() if _BOSS_NAMES.get(_f) == _n)
+if _dead_desc:
+    raise SystemExit(
+        "gen_data: %d row(s) in location_descriptions.tsv now say exactly what the layer-2 boss join "
+        "derives, so they override nothing and only hide which entries are load-bearing. DELETE "
+        "them:\n%s" % (len(_dead_desc), "\n".join("    %d\t%s" % (_f, _BOSS_NAMES[_f]) for _f in _dead_desc)))
+print("location desc: boss names joined = %d flag(s) -- %d by drop entity, %d by reward flag "
+      "(%d drop entity/entities unnamed)"
+      % (len(_BOSS_NAMES), len(_BOSS_NAMES) - len(_reward_names), len(_reward_names),
+         len(_BOSS_DROP_ENTITY) - (len(_BOSS_NAMES) - len(_reward_names))))
 _SPOT_EN       = _load_flag_str_tsv("treasure_name_en.tsv")        # 3. curated place phrases (EN)
 _NEAREST_GRACE = _load_flag_str_tsv("nearest_grace.tsv")           # 4. per-check nearest grace (Windows)
 def _load_shop_sellers():
@@ -10852,6 +10900,18 @@ for _i2, _ln2 in enumerate(_dl):
     _tail = f" [f{_fl2}]"
     _clause2 = _desc_sources.sweep_clause(_pair[0], _pair[1])
     if not _clause2 or not _nm2.endswith(_tail):
+        _sd_after.append((_ap2, _fl2)); continue
+    # 🛑 NOT WHEN THE DESCRIPTOR IS ALREADY THAT BOSS. The clause adds a ROUTE the locator did not
+    # mention; when layer 2 has already named the same trigger it adds nothing and reads as a
+    # stutter -- `Crimsonspill Crystal Tear - Wormface, also granted by Wormface (m60_41_53)`.
+    # This could not happen while layer 2 was empty and every boss drop was described by a grace; it
+    # began the moment the boss-name join reached the sweep triggers as well. Compared on the NAME
+    # alone: the tile disambiguates a REPEATED trigger name, and if the descriptor is already that
+    # name then the sweep is the very route it is describing.
+    _desc2 = _nm2[:-len(_tail)]
+    _desc2 = _desc2.split(" - ", 1)[1] if " - " in _desc2 else ""
+    _desc2 = _desc2.split(" (region unconfirmed)")[0].strip()
+    if _desc2 and _desc2 == str(_pair[0]).strip():
         _sd_after.append((_ap2, _fl2)); continue
     _dl[_i2] = f"{_m2.group(1)}({_nm2[:-len(_tail)] + ', ' + _clause2 + _tail!r}, {_ap2}, {_fl2}),"
     _sd_after.append((_ap2, _fl2)); _sd_patched += 1

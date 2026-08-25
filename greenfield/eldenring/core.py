@@ -510,7 +510,11 @@ _OPTION_GROUPS = [
         "pool_builder_pct_armor", "pool_builder_pct_spells", "pool_builder_pct_talismans",
         "pool_builder_pct_ashes_of_war"]),
     ("Multiworld & Placement", [
-        "death_link", "trap_link", "region_sync", "filler_foreign_pct", "progression_surface", "progression_bias",
+        # boss_progression sits directly before progression_surface because it OVERRIDES it: a player
+        # who reads the group top-down meets the plain-English lever before the class list it
+        # replaces, which is the order its docstring tells them to use the two in.
+        "death_link", "trap_link", "region_sync", "filler_foreign_pct", "boss_progression",
+        "progression_surface", "progression_bias",
         # cross_game_progression reads directly after progression_bias because it only has meaning
         # once that one has released something: bias decides HOW MANY Locks travel, this decides how
         # many of the travellers may leave Elden Ring entirely. Reversed, the second is unanswerable.

@@ -86,6 +86,19 @@ class TheTableIsTotalAndMintsTwoClasses(WorldTestBase):
 #                                            as long as we keep the stone bell bearings useful".
 FLIPPED_TO_USEFUL = frozenset({"spells", "spirit_ashes", "crystal_tears", "upgrade_bells"})
 
+# ...AND THE PER-NAME CARVE-OUT, declared the same way and for the same reason. `class_of` has two
+# mechanisms, so the pin needs two declarations or the second one is undeclared drift by
+# construction. These four are the permanent power-ups: `GOODS_TYPE` files them under type 14 with
+# `Smithing Stone [1]`, so they inherit `upgrade_materials` -- the one goods category deliberately
+# kept FILLER because it is filler_budget's economy -- and no category flip can reach them without
+# taking the whole smithing tail along.
+#
+# 🛑 HAND-WRITTEN, exactly like the list above, and NOT `ic.USEFUL_GOODS`. Importing the set under
+# test would make this assert that the code equals itself.
+FLIPPED_NAMES = frozenset({
+    "Golden Seed", "Sacred Tear", "Scadutree Fragment", "Revered Spirit Ash",
+})
+
 # Each flipped category's roster floor, so "the flip is real" is a witness per category rather than
 # one number that a shrunken roster could hide behind.
 _MIN_ROSTER = {"spells": 100, "spirit_ashes": 50, "crystal_tears": 30, "upgrade_bells": 10}
@@ -98,13 +111,20 @@ class TheDifferenceFromTheNibbleIsDeclared(WorldTestBase):
     def test_the_difference_from_the_retired_rule_is_exactly_the_declared_flip(self):
         """THE PIN, in its post-flip shape. Every departure from the nibble must be declared."""
         moved = {n for n in ITEM_CATALOG if ic.class_of(n) != _retired_nibble_rule(n)}
-        declared = {n for n in ITEM_CATALOG if ic.category_of(n) in FLIPPED_TO_USEFUL}
+        declared = {n for n in ITEM_CATALOG
+                    if ic.category_of(n) in FLIPPED_TO_USEFUL or n in FLIPPED_NAMES}
         seen = {n: ic.class_of(n) for n in ITEM_CATALOG}
         # Witnesses: the scan covered the catalog, both answers occur, and the flip is not empty --
         # so neither a constant class_of nor a table that silently reverted could pass.
         self.assertEqual(len(seen), len(ITEM_CATALOG))
         self.assertEqual(set(seen.values()), {ic.USEFUL, ic.FILLER})
         self.assertGreater(len(declared), 300, "witness: the declared flip is a real roster")
+        # WITNESS for the second mechanism specifically. The category flip is ~319 names, so a
+        # per-name carve-out that silently stopped applying would be invisible inside `declared`.
+        present = {n for n in FLIPPED_NAMES if n in ITEM_CATALOG}
+        self.assertGreaterEqual(len(present), 2, "witness: the per-name carve-out is in this catalog")
+        for n in sorted(present):
+            self.assertEqual(ic.class_of(n), ic.USEFUL, n)
         undeclared = sorted(moved - declared)
         self.assertFalse(undeclared,
                          f"{len(undeclared)} items disagree with the nibble rule without being "

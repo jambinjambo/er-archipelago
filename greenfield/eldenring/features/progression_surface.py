@@ -52,6 +52,43 @@ except Exception:  # not yet generated -> feature is a no-op
 # last. Shop is intentionally NOT here: it would dump locks onto the hundreds of hub shop slots and
 # defeat the restriction -- Shop is only ever in play if the user explicitly selects it in the base.
 _WIDEN_GROUPS = [["Remembrance", "GreatRune"], ["KeyItem"], ["Boss"], ["Legendary"], ["Seedtree", "Church"]]
+
+# ---- boss_progression: the surface expressed as "bosses hold the keys" ---------------------------
+# The classes each boss_progression rung selects. `bosses` is `Boss` ALONE because every other boss
+# tag is a strict subset of it -- MajorBoss, LegacyBoss, FieldBoss, Remembrance, GreatRune and (since
+# 2026-08-20) MinorDungeonBoss are all closed under Boss in the generated tags, so naming them would
+# add class names and ZERO locations, which is exactly the inert-rung mistake build_ladder documents
+# below. `major_bosses` names four classes because it is deliberately NOT closed: it is the boss set
+# MINUS FieldBoss and MinorDungeonBoss, the two largest and least region-confident boss classes (see
+# greenfield/surface_confidence.tsv).
+#
+# 🛑 `LegacyBoss` IS NOT LISTED, and leaving it in would have been silently inert. It was absorbed
+# into `MajorBoss` as a CLASS on 2026-08-20 and survives only as an internal TAG
+# (contract.SURFACE_INTERNAL_TAGS), matched onto the MajorBoss selection through
+# SURFACE_CLASS_EXTRA_TAGS. `selected_surface` filters against `contract.SURFACE_CLASSES`, so naming
+# it here would have been dropped on the floor -- the legacy-dungeon bosses are covered, by MajorBoss.
+_BOSS_MODE_CLASSES = {
+    1: ("Boss",),
+    2: ("MajorBoss", "Remembrance", "GreatRune"),
+}
+
+# Widen order per boss rung. BOSS-WARD FIRST, so `major_bosses` reaches the rest of the healthbars
+# before it gives up on bosses at all; `bosses` already holds every boss class, so its first widen is
+# necessarily off-surface. The off-boss tail is the SAME set _WIDEN_GROUPS ends with and it is kept
+# for the same reason: apply() is documented "never FillErrors", and the terminal action is
+# return-to-pool. Leaving the boss surface abandons what the player asked for, so apply() measures
+# and logs the moment it happens rather than degrading silently.
+_BOSS_LADDERS = {
+    1: [["KeyItem"], ["Legendary"], ["Seedtree", "Church"]],
+    2: [["FieldBoss"], ["MinorDungeonBoss"], ["Boss"], ["KeyItem"], ["Legendary"],
+        ["Seedtree", "Church"]],
+}
+
+# Every class that IS a boss check, for the "did we stay on bosses?" measurement. Derived from the
+# two tables above rather than typed a third time.
+_BOSS_CLASSES = (frozenset(c for cs in _BOSS_MODE_CLASSES.values() for c in cs)
+                 | {"FieldBoss", "MinorDungeonBoss"})
+
 _BOSS_KEY_PREFIX = "Boss Key:"
 # Ability unlocks (#980 follow-up) are advancement + goal-required when ability_unlocks_required is on,
 # but they are DELIBERATELY EXEMPT from local confinement: the whole point of making them progression
@@ -177,6 +214,42 @@ class ProgressionSurfaceMode(Removed):
     🛑 This is not a Frozen option turned Removed by paperwork -- the off-branches were DELETED. A
     build where the option is merely absent behaves as `off`, which silently disarms the surface and
     ships an empty progressionSurfaceLocations to a client that reads it."""
+
+
+class BossProgression(Choice):
+    """MAKE BOSSES THE KEYS. Every progression item this seed requires -- your Region Locks, and any
+    Great Runes or legacy keys the gates ask for -- is placed on a BOSS, in a region you have already
+    opened. Ordinary loot is untouched: every chest, corpse and merchant row still pays out exactly
+    what it would have. What changes is where the things you NEED can be.
+
+      off           Progression Surface below decides, as it does today (default).
+      bosses        every boss healthbar in play is a candidate. The one to pick.
+      major_bosses  only the named majors, the legacy-dungeon bosses and the remembrance drops.
+                    A much tighter run -- but in a small region that can come down to a single
+                    check, and then the seed is likelier to fall back off bosses (see below).
+
+    Turning this on REPLACES your Progression Surface selection: that option lists the location
+    classes progression may use, and this one overrides the list with the bosses. Set this and leave
+    Progression Surface alone -- they are the same lever, and this is the version of it that says
+    what it does.
+
+    IN A MULTIWORLD IT GOVERNS OTHER PLAYERS' KEYS TOO. Another game's progression may then only land
+    on your bosses as well, so an Elden Ring boss can be holding somebody else's way forward. Confine
+    Foreign Progression decides what share of it is held that way.
+
+    🛑 THAT IS A BAR, NOT A MAGNET. It fixes WHERE another world's progression lands in your game; it
+    does not make more of it arrive. Cross Game Progression is the option that sends yours outward,
+    and Elden Ring reserves a share of its useful items for partners on its own.
+
+    It can never fail to generate. When the bosses in play cannot host every key -- a very small
+    `num_regions` is how you get there -- the placement widens off them one step at a time, and the
+    generation log names every key that did not get a boss."""
+    display_name = "Boss Progression"
+    # Values are the keys of _BOSS_MODE_CLASSES / _BOSS_LADDERS; keep them in step.
+    option_off = 0
+    option_bosses = 1
+    option_major_bosses = 2
+    default = 0
 
 
 class ProgressionBias(Range):
@@ -502,9 +575,13 @@ def selected_surface(sel):
     return [c for c in contract.SURFACE_CLASSES if c in chosen]
 
 
-def build_ladder(selection):
+def build_ladder(selection, boss_mode=0):
     """Ordered list of allowed-class-sets for the STRICT feasibility ladder, starting from the user's
-    base surface and widening by _WIDEN_GROUPS. Pure. Empty selection -> [] (feature no-op)."""
+    base surface and widening by _WIDEN_GROUPS. Pure. Empty selection -> [] (feature no-op).
+
+    `boss_mode` (a boss_progression value) swaps in that rung's `_BOSS_LADDERS` widen order instead --
+    boss-ward first, then the same off-boss tail. An unknown value falls back to `_WIDEN_GROUPS`, so a
+    caller that does not know about boss mode gets exactly today's ladder."""
     base = selected_surface(selection)
     if not base:
         return []
@@ -532,7 +609,7 @@ def build_ladder(selection):
         return len(allowed_ap_ids(LOCATION_TAGS, set(classes)))
 
     seen = _admits(acc)
-    for grp in _WIDEN_GROUPS:
+    for grp in _BOSS_LADDERS.get(boss_mode, _WIDEN_GROUPS):
         add = [c for c in grp if c not in acc]
         if not add:
             continue
@@ -1181,10 +1258,42 @@ def regions_with_major_boss(region_names, tags_map=None, locations=None, barred=
 
 
 # ---- AP glue --------------------------------------------------------------------------------------
+def _boss_mode(world) -> int:
+    """The boss_progression rung, or 0 for off/absent/unrecognised. A value outside `_BOSS_MODE_CLASSES`
+    reads as OFF rather than raising: this is called from `_selection`, which runs on every world
+    including the stubs the pure tests build, and an unknown rung must degrade to today's behaviour
+    rather than take generation down."""
+    o = getattr(getattr(world, "options", None), "boss_progression", None)
+    if o is None:
+        return 0
+    try:
+        v = int(o.value)
+    except (TypeError, ValueError):
+        return 0
+    return v if v in _BOSS_MODE_CLASSES else 0
+
+
+def _boss_mode_name(world) -> str:
+    """The yaml spelling of the active rung, for the log. Read off the live option (AP's Choice keeps
+    `current_key`) rather than a fourth table keyed by the same ints -- a hand-kept name map is how a
+    log line ends up naming the wrong mode after a rung is added."""
+    o = getattr(getattr(world, "options", None), "boss_progression", None)
+    name = getattr(o, "current_key", None)
+    return str(name) if name else "mode %d" % _boss_mode(world)
+
+
 def _selection(world):
     """The classes this world's surface is built from. ONE resolution, read by BOTH apply() (where the
     locks go) and slot_data() (what the client stars). If those two ever computed the surface
-    differently we would be back to two lists disagreeing -- which is the bug big-ticket was."""
+    differently we would be back to two lists disagreeing -- which is the bug big-ticket was.
+
+    `boss_progression` OVERRIDES the selection rather than intersecting it, which is what its
+    docstring promises the player: "set this and leave Progression Surface alone". Resolving it HERE
+    rather than in apply() is what keeps that promise honest -- slot_data stars the same checks the
+    locks actually went on, so the client's tracker cannot disagree with the fill."""
+    mode = _boss_mode(world)
+    if mode:
+        return _BOSS_MODE_CLASSES[mode]
     opt = getattr(world.options, "progression_surface", None)
     return opt.value if opt is not None else None
 
@@ -1358,6 +1467,34 @@ def collapsed_lift_aps(world):
     return ids - frozenset(_b) - frozenset(_g)
 
 
+def boss_placement_census(world, boss_mode):
+    """(on_boss, off_boss) over this world's OWN progression that apply() has already placed.
+
+    🛑 MEASURED FROM WHERE THE ITEMS LANDED, not from which rung was running when they were placed.
+    A widened rung hands `fill_restrictive` the boss checks AND the newly-allowed ones in one shuffled
+    list, so "the ladder left the boss surface" and "this key is not on a boss" are different claims
+    and only the second is the one the option promised. Attributing a whole rung's placements to
+    off-boss would over-report the degrade every time the ladder widened and then landed on a boss
+    anyway.
+
+    Spilled items are NOT counted: they have no location yet (they went back to the pool for the
+    general fill). `gf_prog_surface_spilled` / `_spilled_names` already report those separately."""
+    if not boss_mode:
+        return (0, 0)
+    ids = allowed_ap_ids(LOCATION_TAGS, selected_surface(_BOSS_MODE_CLASSES[boss_mode]),
+                         defaulted=_world_barred_aps(world))
+    on = off = 0
+    for loc in world.multiworld.get_locations(world.player):
+        it = getattr(loc, "item", None)
+        if it is None or not is_restricted_progression(it, world.player):
+            continue
+        if getattr(loc, "address", None) in ids:
+            on += 1
+        else:
+            off += 1
+    return (on, off)
+
+
 def _world_barred_aps(world):
     """The per-world no-progression set for surface math: DEFAULTED_REGION_APS always; the missable
     set while its guard is armed (missable_barred_aps); the ERDTREE_BURN_APS burn-strand bar only
@@ -1491,7 +1628,8 @@ def apply(world) -> None:
     for it in to_place:
         mw.itempool.remove(it)
     strict = True   # the only regime; see ProgressionSurfaceMode's retirement note
-    rungs = build_ladder(surface)
+    _boss = _boss_mode(world)
+    rungs = build_ladder(surface, _boss)
     resolved = rungs[0] if rungs else list(surface)
     for classes in rungs:
         if not to_place:
@@ -1539,6 +1677,24 @@ def apply(world) -> None:
         resolved, n0 - len(to_place), n0, len(to_place),
         (" (curation only -- winnability is guarded elsewhere): "
          + ", ".join(world.gf_prog_surface_spilled_names)) if to_place else "")
+    # BOSS PROGRESSION ANSWERS ITS OWN QUESTION. The rung line above says which CLASSES were in play;
+    # the option promised the player that their keys are on BOSSES, and a widened rung can still land
+    # on one. So this counts where the items actually are (see boss_placement_census) -- and when the
+    # requested rung is the tight one, it also says how many of the strays are on SOME boss, because
+    # "off a major" and "not on a boss at all" are different degrades and only the second breaks the
+    # promise outright.
+    if _boss:
+        _on_boss, _off_boss = boss_placement_census(world, _boss)
+        _still = (boss_placement_census(world, 1)[0] - _on_boss) if (_boss == 2 and _off_boss) else 0
+        logging.getLogger("Greenfield").info(
+            "[greenfield] boss progression (%s): %d progression item(s) ON a %s, %d elsewhere%s, "
+            "%d spilled to the general fill%s",
+            _boss_mode_name(world), _on_boss,
+            "major boss" if _boss == 2 else "boss", _off_boss,
+            (" (%d of them still on a boss)" % _still) if _still else "",
+            world.gf_prog_surface_spilled,
+            (": " + ", ".join(world.gf_prog_surface_spilled_names))
+            if world.gf_prog_surface_spilled_names else "")
 
     # D (2026-07-10): break the boss-key <-> region-lock cycle. When boss_keys is on, the default
     # surface IS key-gated boss checks, and `_place` validates against get_all_state (which counts
@@ -1659,9 +1815,33 @@ class ProgressionSurfaceFeature(Feature):
                "progression_bias": ProgressionBias,
                "confine_foreign_progression": ConfineForeignProgression,
                "cross_game_progression": CrossGameProgression,
-               "goal_region_unlock_policy": GoalRegionUnlockPolicy}
+               "goal_region_unlock_policy": GoalRegionUnlockPolicy,
+               "boss_progression": BossProgression}
     # Placement runs centrally from core.pre_fill via apply() (locations exist + get_all_state valid).
     # The foreign-progression bar is set in core._add_locations (item_rule), using confined_surface_ids.
+
+    def generate_early(self, world):
+        """Reject the one combination boss_progression cannot mean anything in.
+
+        `vanilla_placement` pins EVERY location to its vanilla item and mints no Region Locks, so
+        there is no progression left for a surface to confine and no free slot for it to land in --
+        the mode would generate clean and do nothing. The house rule for that is an OptionError
+        naming both options, not a silent no-op (features/keep_out_of_shops does the same for the
+        same reason). `natural_progression` is deliberately NOT rejected: it mints no Locks either,
+        but it DOES mint natural keys, which are this world's own progression and are confined
+        normally."""
+        if not _boss_mode(world):
+            return
+        try:
+            from Options import OptionError
+            from . import vanilla_placement as _vp
+        except ImportError:  # pragma: no cover -- feature not present
+            return
+        if _vp.is_on(world):
+            raise OptionError(
+                "[eldenring] boss_progression is on, but vanilla_placement pins every location to "
+                "its vanilla item and mints no Region Locks -- there is no progression to place on "
+                "a boss. Turn one of them off.")
 
     def slot_data(self, world):
         """Ship the surface to the CLIENT. This is the set the tracker stars.

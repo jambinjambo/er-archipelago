@@ -400,6 +400,33 @@ CATEGORY_CLASS: Dict[str, str] = {
 }
 
 
+# ---- THE PERMANENT POWER-UPS: a per-NAME promotion, because the category cannot carry it ---------
+# A Golden Seed is consumed once and raises your flask count for the rest of the run. It is not junk
+# and a partner receiving one has been given something. But it cannot be promoted the way `spells`
+# and `crystal_tears` were, because it is not in a category of its own: `GOODS_TYPE` files Golden
+# Seed, Sacred Tear, Scadutree Fragment and Revered Spirit Ash under **type 14 -- the same type as
+# `Smithing Stone [1]`** -- so they land in `upgrade_materials`, which the table above deliberately
+# keeps FILLER ("an economy change wearing a classification change's clothes"). Flipping the category
+# would move features/filler_budget's entire hundreds-strong smithing tail into the useful tier.
+#
+# So this is the third name-based carve-out in this file, and it is the same species as the other two
+# (`runes` out of type 0 by payout, `cookbooks` out of type 1 by mark): the param does not separate
+# them, so it is OUR judgement about OUR pool and it should read like one rather than hide inside a
+# filter. Four names, listed, each with the reason it is not a crafting material.
+#
+# 🛑 IT GOES HERE AND NOT IN `core._class_for`, even though that is where per-name promotions
+# normally live. The consumers must AGREE: features/filler_foreign builds its candidate list from
+# `class_of` and would otherwise keep calling a Golden Seed filler while core called it useful, and
+# a low `filler_foreign_pct` would then hold back an item the classification says should travel.
+# One taxonomy, asked once -- which is the whole reason `class_of` replaced the private nibble test.
+USEFUL_GOODS = frozenset({
+    "Golden Seed",              # +1 flask charge, permanent
+    "Sacred Tear",              # +1 flask potency, permanent
+    "Scadutree Fragment",       # the DLC's damage/defence ladder
+    "Revered Spirit Ash",       # the DLC's spirit-ash ladder
+})
+
+
 def class_of(name: str) -> Optional[str]:
     """`USEFUL` or `FILLER` for a catalog item, or None if this taxonomy has no opinion.
 
@@ -413,4 +440,6 @@ def class_of(name: str) -> Optional[str]:
     """
     if name not in ITEM_CATALOG:
         return None
+    if name in USEFUL_GOODS:        # see USEFUL_GOODS -- the category cannot answer for these four
+        return USEFUL
     return CATEGORY_CLASS.get(category_of(name), FILLER)

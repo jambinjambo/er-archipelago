@@ -685,6 +685,20 @@ Elden Ring:
 
   # ---- Where progression may hide -------------------------------------------
 
+  # MAKE BOSSES THE KEYS. `off` (default) leaves the choice to progression_surface
+  # below. `bosses` puts every progression item this seed requires -- your Region
+  # Locks and any gate keys -- on a BOSS in a region you have already opened;
+  # `major_bosses` narrows that to the named majors, the legacy-dungeon bosses and
+  # the remembrance drops.
+  #
+  # It REPLACES your progression_surface selection rather than combining with it --
+  # they are the same lever and this is the version that says what it does. Set this
+  # and leave progression_surface alone. In a multiworld it governs other players'
+  # keys too, so an Elden Ring boss can hold somebody else's way forward. It can
+  # never fail to generate: when the bosses in play cannot host every key the
+  # placement widens off them one step at a time and the log names what did not fit.
+  boss_progression: off
+
   # WHICH LOCATIONS MAY HOLD PROGRESSION. Shrinking this makes the run tighter
   # and more predictable; widening it scatters key items further afield.
   #
