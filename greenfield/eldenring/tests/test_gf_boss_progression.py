@@ -208,7 +208,7 @@ class BossProgressionOffIsInert(WorldTestBase):
 
     def test_off_reports_no_boss_census(self):
         assert getattr(self.world, "gf_boss_progression", 0) == 0
-        assert ps.boss_placement_census(self.world, 0) == (0, 0)
+        assert ps.boss_placement_census(self.world, 0) == (0, 0, 0, 0)
 
 
 # ---- 5. a real seed: our own progression lands on bosses -----------------------------------------
@@ -229,7 +229,7 @@ class BossProgressionSoloSeed(WorldTestBase):
         """The mode's whole promise. Anything the ladder could not fit is reported as SPILLED and is
         allowed to be off-boss -- winnability is guarded independently -- so this asserts the census
         agrees with where the items actually are."""
-        on_boss, off_boss = ps.boss_placement_census(self.world, 1)
+        on_boss, off_boss, _f_on, _f_off = ps.boss_placement_census(self.world, 1)
         assert on_boss > 0, "a 6-region seed mints several locks; none of them reached a boss"
         assert off_boss == 0, (
             "%d own progression item(s) were placed off the boss surface on a seed with room to "
@@ -244,6 +244,23 @@ class BossProgressionSoloSeed(WorldTestBase):
             assert _is_boss(loc.address), (
                 "%s is on %s, which carries tags %s -- not a boss"
                 % (loc.item.name, loc.name, LOCATION_TAGS.get(loc.address)))
+
+    def test_the_census_counts_foreign_progression_too(self):
+        """🛑 THE BLIND SPOT THAT MADE THE TELEMETRY LIE. The census used to report only OWN
+        progression, and only what apply()'s pass had placed. Measured over five 1xER + 2xHK seeds on
+        2026-08-24 it printed `0 progression item(s) ON a boss, 0 elsewhere` on every one of them --
+        while the finished multiworlds held 400 of 400 progression items on Elden Ring bosses, all of
+        them another player's. A line that says a working feature is idle invites someone to go fix
+        what is not broken.
+
+        This asserts the SHAPE that fixed it: four numbers, own and foreign kept apart. The foreign
+        pair is 0 here because WorldTestBase builds a solo world -- the point is that the slot
+        EXISTS and is reported separately, not welded into the own count where it was invisible."""
+        result = ps.boss_placement_census(self.world, 1)
+        assert len(result) == 4, "the census must report own and foreign separately"
+        own_on, own_off, for_on, for_off = result
+        assert own_on > 0, "witness: this seed placed own progression, so the tuple is not all-zero"
+        assert (for_on, for_off) == (0, 0), "a solo world has no foreign progression to count"
 
     def test_the_client_stars_the_bosses(self):
         """slot_data reads the SAME resolution as the placement (_selection). If they ever diverge
@@ -328,7 +345,7 @@ class ForeignProgressionUnconfined(WorldTestBase):
                "confine_foreign_progression": 0, "progression_bias": 100}
 
     def test_our_own_progression_is_still_boss_only(self):
-        on_boss, off_boss = ps.boss_placement_census(self.world, 1)
+        on_boss, off_boss, _f_on, _f_off = ps.boss_placement_census(self.world, 1)
         assert on_boss > 0 and off_boss == 0
 
     def test_foreign_progression_is_not_confined(self):
@@ -349,7 +366,7 @@ class BossProgressionWithReleasedLocks(WorldTestBase):
             "empty the test below is exercising apply() again and not the released path")
 
     def test_released_locks_still_landed_on_bosses(self):
-        on_boss, off_boss = ps.boss_placement_census(self.world, 1)
+        on_boss, off_boss, _f_on, _f_off = ps.boss_placement_census(self.world, 1)
         assert on_boss > 0
         assert off_boss == 0, (
             "%d own progression item(s) ended up off the boss surface via the released-lock path "

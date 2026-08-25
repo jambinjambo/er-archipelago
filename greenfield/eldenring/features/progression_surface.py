@@ -1468,31 +1468,82 @@ def collapsed_lift_aps(world):
 
 
 def boss_placement_census(world, boss_mode):
-    """(on_boss, off_boss) over this world's OWN progression that apply() has already placed.
+    """Where PROGRESSION ACTUALLY SAT when the seed was finished, on this world's own checks.
 
-    🛑 MEASURED FROM WHERE THE ITEMS LANDED, not from which rung was running when they were placed.
-    A widened rung hands `fill_restrictive` the boss checks AND the newly-allowed ones in one shuffled
-    list, so "the ladder left the boss surface" and "this key is not on a boss" are different claims
-    and only the second is the one the option promised. Attributing a whole rung's placements to
-    off-boss would over-report the degrade every time the ladder widened and then landed on a boss
-    anyway.
+    Returns ``(own_on, own_off, foreign_on, foreign_off)`` -- our own advancement items and other
+    players' counted separately, each split by whether the check is a boss.
 
-    Spilled items are NOT counted: they have no location yet (they went back to the pool for the
-    general fill). `gf_prog_surface_spilled` / `_spilled_names` already report those separately."""
+    # 🛑 WHY THIS IS FOUR NUMBERS AND NOT TWO, AND WHY IT RUNS SO LATE
+
+    The first version answered a much narrower question -- "of the items apply()'s surface pass
+    placed, how many are on a boss" -- and reported **0 on a boss, 0 elsewhere** on every seed of a
+    five-seed batch while the finished multiworld had **400 of 400 progression items sitting on
+    Elden Ring bosses**. Two independent reasons, and each alone was enough:
+
+      1. `is_restricted_progression` is deliberately OWN-ONLY (it is the predicate that decides what
+         we confine). But the multiworld half of `boss_progression` is about OTHER players' keys
+         landing on our bosses, and every one of those 400 was foreign. The census could not see the
+         thing the option is mostly for.
+      2. `apply()` runs from `core.pre_fill`, BEFORE the main fill. At `progression_bias: 0` every
+         Lock is released to the pool first, so the surface pass has nothing of its own left to
+         place and correctly reported zero -- of a population that was empty at the time of asking.
+
+    A telemetry line that reads "this feature did nothing" while the feature is working is worse than
+    no line: it invites someone to go fix what is not broken, and it hides the real degrade when one
+    arrives. So the question changed to the one a player would ask, and the measurement moved to
+    where it has a true answer -- `core.generate_output`, which Main.py runs at line 239, AFTER
+    `balance_multiworld_progression` at 206. post_fill would have been earlier and wrong in the same
+    family of way: balancing SWAPS placed items between arbitrary players' locations, so a count
+    taken before it describes a seed nobody will play.
+
+    Boss Keys stay excluded (`is_restricted_progression`'s rule) because they are exempt from the
+    surface by design; foreign advancement is counted whole.
+    """
     if not boss_mode:
-        return (0, 0)
+        return (0, 0, 0, 0)
     ids = allowed_ap_ids(LOCATION_TAGS, selected_surface(_BOSS_MODE_CLASSES[boss_mode]),
                          defaulted=_world_barred_aps(world))
-    on = off = 0
+    own_on = own_off = foreign_on = foreign_off = 0
     for loc in world.multiworld.get_locations(world.player):
         it = getattr(loc, "item", None)
-        if it is None or not is_restricted_progression(it, world.player):
+        if it is None or not getattr(it, "advancement", False):
             continue
-        if getattr(loc, "address", None) in ids:
-            on += 1
+        mine = getattr(it, "player", None) == world.player
+        if mine and not is_restricted_progression(it, world.player):
+            continue                      # our own Boss Keys are exempt from the surface
+        on = getattr(loc, "address", None) in ids
+        if mine:
+            own_on, own_off = own_on + on, own_off + (not on)
         else:
-            off += 1
-    return (on, off)
+            foreign_on, foreign_off = foreign_on + on, foreign_off + (not on)
+    return (own_on, own_off, foreign_on, foreign_off)
+
+
+def log_boss_census(world) -> None:
+    """The boss_progression telemetry line. Called from `core.generate_output` -- see the census
+    docstring for why it cannot be called any earlier and be true."""
+    import logging
+    mode = _boss_mode(world)
+    if not mode:
+        return
+    own_on, own_off, for_on, for_off = boss_placement_census(world, mode)
+    total_on, total = own_on + for_on, own_on + own_off + for_on + for_off
+    what = "major boss" if mode == 2 else "boss"
+    # When the tight rung is running, say how many of the strays are on SOME boss: "off a major" and
+    # "not on a boss at all" are different degrades and only the second breaks the promise outright.
+    still = 0
+    if mode == 2 and (own_off or for_off):
+        wide = boss_placement_census(world, 1)
+        still = (wide[0] + wide[2]) - total_on
+    logging.getLogger("Greenfield").info(
+        "[greenfield] boss progression (%s): %d of %d progression item(s) on this world's checks "
+        "are on a %s (%.0f%%)%s -- %d own (%d elsewhere), %d from other players (%d elsewhere)%s",
+        _boss_mode_name(world), total_on, total, what,
+        (100.0 * total_on / total) if total else 100.0,
+        (" [%d of the strays are still on a boss]" % still) if still > 0 else "",
+        own_on, own_off, for_on, for_off,
+        ("; %d of our own progression item(s) SPILLED off the surface into the general fill"
+         % world.gf_prog_surface_spilled) if getattr(world, "gf_prog_surface_spilled", 0) else "")
 
 
 def _world_barred_aps(world):
@@ -1677,24 +1728,11 @@ def apply(world) -> None:
         resolved, n0 - len(to_place), n0, len(to_place),
         (" (curation only -- winnability is guarded elsewhere): "
          + ", ".join(world.gf_prog_surface_spilled_names)) if to_place else "")
-    # BOSS PROGRESSION ANSWERS ITS OWN QUESTION. The rung line above says which CLASSES were in play;
-    # the option promised the player that their keys are on BOSSES, and a widened rung can still land
-    # on one. So this counts where the items actually are (see boss_placement_census) -- and when the
-    # requested rung is the tight one, it also says how many of the strays are on SOME boss, because
-    # "off a major" and "not on a boss at all" are different degrades and only the second breaks the
-    # promise outright.
-    if _boss:
-        _on_boss, _off_boss = boss_placement_census(world, _boss)
-        _still = (boss_placement_census(world, 1)[0] - _on_boss) if (_boss == 2 and _off_boss) else 0
-        logging.getLogger("Greenfield").info(
-            "[greenfield] boss progression (%s): %d progression item(s) ON a %s, %d elsewhere%s, "
-            "%d spilled to the general fill%s",
-            _boss_mode_name(world), _on_boss,
-            "major boss" if _boss == 2 else "boss", _off_boss,
-            (" (%d of them still on a boss)" % _still) if _still else "",
-            world.gf_prog_surface_spilled,
-            (": " + ", ".join(world.gf_prog_surface_spilled_names))
-            if world.gf_prog_surface_spilled_names else "")
+    # 🛑 NO BOSS CENSUS HERE. It used to log one at this point and it read 0/0 on every seed of a
+    # five-seed batch whose finished multiworld had 400 of 400 progression items on Elden Ring
+    # bosses. Nothing is placed yet except what the pass above placed, and at `progression_bias: 0`
+    # that is nothing at all. `log_boss_census` runs from core.generate_output instead, where the
+    # question has a true answer -- see its docstring.
 
     # D (2026-07-10): break the boss-key <-> region-lock cycle. When boss_keys is on, the default
     # surface IS key-gated boss checks, and `_place` validates against get_all_state (which counts

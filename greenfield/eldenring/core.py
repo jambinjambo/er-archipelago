@@ -2356,6 +2356,14 @@ class GreenfieldEldenRingWorld(World):
             spoiler_handle.write(f"  (slot_data dump failed: {e!r})\n")
 
     def generate_output(self, output_directory: str) -> None:
+        # BOSS PROGRESSION CENSUS. Here and not in post_fill: Main.py runs post_fill at 203 and
+        # `balance_multiworld_progression` at 206, and balancing SWAPS placed items between arbitrary
+        # players' locations -- so a count taken in post_fill describes a seed nobody will play. This
+        # hook runs at 239, after it. (features/progression_surface.log_boss_census documents the
+        # earlier, worse version: it read 0/0 while 400 of 400 progression items were on bosses.)
+        from .features import progression_surface as _psc
+        _psc.log_boss_census(self)
+
         # Post-fill CHECK BREAKDOWN, printed to the generate log so a seed can be judged on
         # progression shape + filler locality at a glance (not just "it genned"): how each of this
         # slot's checks was filled -- own progression / own useful / own (local) filler / another
