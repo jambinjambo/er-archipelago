@@ -79,7 +79,9 @@ _TEMPLATE_DEBT = {
     "no_fall_damage",
     "no_runes_in_shops",
     "num_regions_order",
-    "progression_bias",
+    # progression_bias DRAINED 2026-08-15: it reached the template alongside progression_travel and
+    # share_useful_pct, which document the multiworld half of the release fix. The gate checks both
+    # directions, so leaving it here would be a redundant override rather than a quarantine.
     "scadutree_blessing_scope",
     "start_regions",
     "start_with_whetblades",

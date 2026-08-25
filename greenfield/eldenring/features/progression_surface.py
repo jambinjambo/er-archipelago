@@ -29,7 +29,7 @@ region Lock) counts as available, and a Boss-Key-gated boss check doesn't look f
 Placed locks are collected (lock=True) so multiworld progression-balancing can't later move them off the
 surface. Runs from core.pre_fill; supersedes curated_fill when the mode is soft/strict.
 """
-from Options import OptionSet, Choice, NamedRange, Range
+from Options import OptionSet, Choice, NamedRange, Range, OptionError
 import hashlib
 
 from ..registry import Feature, register
@@ -50,6 +50,32 @@ except Exception:  # not yet generated -> feature is a no-op
 # defeat the restriction -- Shop is only ever in play if the user explicitly selects it in the base.
 _WIDEN_GROUPS = [["Remembrance", "GreatRune"], ["KeyItem"], ["Boss"], ["Legendary"], ["Seedtree", "Church"]]
 _BOSS_KEY_PREFIX = "Boss Key:"
+
+# ---- boss_progression: the surface expressed as "bosses hold the keys" ---------------------------
+# The classes each boss_progression rung selects. `bosses` is `Boss` alone because gen_data closes
+# MajorBoss/Remembrance/GreatRune UNDER Boss (tests/test_gf_location_tags), so naming them too would
+# add classes and no locations. `major_bosses` names four classes because it is deliberately NOT
+# closed: it is the boss set MINUS FieldBoss, which is both the largest boss class and the one whose
+# region is least confident (see greenfield/surface_confidence.tsv).
+_BOSS_MODE_CLASSES = {
+    1: ("Boss",),
+    2: ("MajorBoss", "LegacyBoss", "Remembrance", "GreatRune"),
+}
+
+# Widen order per boss rung. BOSS-WARD FIRST, so `major_bosses` reaches the rest of the healthbars
+# before it gives up on bosses at all; `bosses` already holds every boss class, so its first widen is
+# necessarily off-surface. The off-boss tail is the SAME set _WIDEN_GROUPS ends with and it is kept
+# for the same reason: apply() is documented "never FillErrors", and the terminal action is
+# return-to-pool. Leaving the boss surface abandons what the player asked for, so apply() measures
+# and logs the moment it happens rather than degrading silently.
+_BOSS_LADDERS = {
+    1: [["KeyItem"], ["Legendary"], ["Seedtree", "Church"]],
+    2: [["FieldBoss"], ["Boss"], ["KeyItem"], ["Legendary"], ["Seedtree", "Church"]],
+}
+
+# Every class that IS a boss check, for the "did we stay on bosses?" measurement. Derived from the
+# two tables above rather than typed a third time.
+_BOSS_CLASSES = frozenset(c for cs in _BOSS_MODE_CLASSES.values() for c in cs) | {"FieldBoss"}
 
 
 class ProgressionSurface(OptionSet):
@@ -129,6 +155,44 @@ class ProgressionSurfaceMode(Choice):
     default = 2
 
 
+class BossProgression(Choice):
+    """MAKE BOSSES THE KEYS. Every progression item this seed requires -- your Region Locks, and any
+    Great Runes or legacy keys the gates ask for -- is placed on a BOSS, in a region you have already
+    opened. Ordinary loot is untouched: every chest, corpse and merchant row still pays out exactly
+    what it would have. What changes is where the things you NEED can be.
+
+      off           Progression Surface below decides, as it does today (default).
+      bosses        every boss healthbar in play is a candidate. The one to pick.
+      major_bosses  only the named majors, the legacy-dungeon bosses and the remembrance drops.
+                    A much tighter run -- but in a small region that can come down to a single
+                    check, and then the seed is likelier to fall back off bosses (see below).
+
+    Turning this on REPLACES your Progression Surface selection: that option lists the location
+    classes progression may use, and this one overrides the list with the bosses. Set this and leave
+    Progression Surface alone -- they are the same lever, and this is the version of it that says
+    what it does.
+
+    IN A MULTIWORLD IT GOVERNS OTHER PLAYERS' KEYS TOO. Another game's progression may then only land
+    on your bosses as well, so an Elden Ring boss can be holding somebody else's way forward. Confine
+    Foreign Progression decides what share of it is held that way.
+
+    🛑 THAT IS A BAR, NOT A MAGNET. It fixes WHERE another world's progression lands in your game; it
+    does not make more of it arrive, and it makes less. Barred from your ordinary checks, a partner's
+    keys have nowhere to go but the partner's own world -- and Archipelago fills those before it
+    places the `useful` tier, so a non-Elden-Ring partner ends up receiving mostly filler from you.
+    Confine Foreign Progression is the knob that trades that back.
+
+    It can never fail to generate. When the bosses in play cannot host every key -- a very small
+    `num_regions` is how you get there -- the placement widens off them one step at a time, and the
+    generation log names every key that did not get a boss."""
+    display_name = "Boss Progression"
+    # Values are the keys of _BOSS_MODE_CLASSES / _BOSS_LADDERS; keep them in step.
+    option_off = 0
+    option_bosses = 1
+    option_major_bosses = 2
+    default = 0
+
+
 class ProgressionBias(Range):
     """How hard your Region Locks are pulled toward YOUR OWN world. 0 (default) is no pull at all --
     every Lock is an ordinary multiworld item and can end up in another player's game, so you may
@@ -153,6 +217,40 @@ class ProgressionBias(Range):
     No effect in a solo seed (there is nowhere else for a Lock to go), nor in the modes that mint no
     Lock items at all (natural progression, vanilla placement)."""
     display_name = "Progression Bias"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
+class ProgressionTravel(Range):
+    """Of the Region Locks that Progression Bias lets go, the share that skips curation entirely and
+    goes straight into the open multiworld fill.
+
+    Progression Bias decides HOW MANY of your Locks leave your reserved checks. This decides how far
+    they go.
+
+    At 0 (default) a released Lock is offered to ANOTHER Elden Ring slot's Progression Surface, so in
+    a multi-Elden-Ring seed your key still lands on somebody's boss or remembrance. If no other Elden
+    Ring slot can host it, it goes into the open pool and may land anywhere.
+
+    Above 0, that share is FORCED OUT of your world entirely: those Locks may not be placed in your
+    game at all, so the player who opens Liurnia for you is somebody else, and you cannot get there
+    until they find it. That is the co-op setting, and it is a promise rather than a tendency --
+    merely allowing a Lock to travel does not make it travel. Measured on five seeds with one Elden
+    Ring slot beside two Hollow Knight slots: with the Locks simply returned to the open pool, 0 of
+    32 reached a partner, because Elden Ring supplies most of the checks and the fill finds one of
+    ours first every time.
+
+    A released Lock is never handed back to your own world at any setting.
+
+    🛑 SOMEBODY ELSE HAS TO BE ABLE TO HOLD IT. Every forced-out Lock needs a reachable check in a
+    partner world, and a seed with one small partner has few. High values there make generation work
+    hard. It never costs winnability -- Archipelago places progression in a reachable order whichever
+    world it lands in -- but it does mean waiting on your friends, which is the point.
+
+    No effect in a solo seed, nor in the modes that mint no Lock items (natural progression, vanilla
+    placement)."""
+    display_name = "Progression Travel"
     range_start = 0
     range_end = 100
     default = 0
@@ -378,15 +476,19 @@ def selected_surface(sel):
     return [c for c in contract.SURFACE_CLASSES if c in chosen]
 
 
-def build_ladder(selection):
+def build_ladder(selection, boss_mode=0):
     """Ordered list of allowed-class-sets for the STRICT feasibility ladder, starting from the user's
-    base surface and widening by _WIDEN_GROUPS. Pure. Empty selection -> [] (feature no-op)."""
+    base surface and widening by _WIDEN_GROUPS. Pure. Empty selection -> [] (feature no-op).
+
+    `boss_mode` (a boss_progression value) swaps in that rung's _BOSS_LADDERS widen order instead --
+    boss-ward first, then the same off-boss tail. An unknown value falls back to _WIDEN_GROUPS, so a
+    caller that does not know about boss mode gets exactly today's ladder."""
     base = selected_surface(selection)
     if not base:
         return []
     rungs = [list(base)]
     acc = list(base)
-    for grp in _WIDEN_GROUPS:
+    for grp in _BOSS_LADDERS.get(boss_mode, _WIDEN_GROUPS):
         add = [c for c in grp if c not in acc]
         if add:
             acc = acc + add
@@ -485,10 +587,62 @@ def place_released_locks(multiworld, worlds) -> None:
     Cross-game is deliberately untouched. This hook only sees Elden Ring worlds, so a Lock bound for
     a Hollow Knight slot is simply one this pass did not place -- it spills, and the general fill
     takes it anywhere. Curated among ourselves, ordinary everywhere else.
+
+    # 🛑 A RELEASED LOCK IS NEVER OFFERED BACK TO ITS OWN WORLD (2026-08-15)
+
+    That sentence above -- "curated among ourselves" -- quietly assumed a multi-Elden-Ring
+    multiworld. With ONE Elden Ring slot beside partner games, "somebody's surface" is our own
+    surface, it always has room, and the spill is zero. MEASURED, five four-slot seeds against stock
+    AP 0.6.7 (2 Elden Ring + 2 Hollow Knight), progression_bias 0:
+
+        progression surface: 6 Lock(s) RELEASED to the multiworld pool (progression_bias 0)
+        progression surface: placed 6/6 RELEASED Lock(s) across 1 Elden Ring world(s); 0 SPILLED
+
+    Zero of 16 released Locks reached a partner world in the whole batch, while `ProgressionBias`'s
+    docstring promised the opposite in plain language. So the release was real and the travel was
+    not: we handed the Lock back to ourselves and called it released.
+
+    The fix is one rule, installed on the gathered locations for the duration of this pass and torn
+    down in `finally`: a location REFUSES an item belonging to its own player. With two Elden Ring
+    slots that still curates -- A's Locks onto B's surface and back -- which is what the pass is for.
+    With one, every candidate refuses every item, `allow_partial` returns them all unplaced, and the
+    spill path below (which already existed, and is already what the "never FillErrors" contract
+    rests on) hands them to the general fill, where AP's sphere-driven progression fill can put them
+    in ANY player's world. Partner games demonstrably accept them: in that same batch Hollow Knight
+    hosted 196 progression items.
     """
     import inspect
     import logging
     from Fill import fill_restrictive
+
+    # THE TRAVELLING LOCKS (progression_travel), barred from their own world outright.
+    #
+    # 🛑 WHY A RULE HERE AND NOT `non_local_items`. That option is the natural home for "this item
+    # may not be in my world" and features/share_useful uses it -- but Main.py reads it in
+    # `locality_rules` at line 140, and the release split cannot happen before `create_items` has
+    # built the pool, so by the time we know which Locks travel the locality pass is long gone.
+    # `stage_pre_fill` still runs before `distribute_items_restrictive`, so installing the identical
+    # rule here lands at the only moment that is both late enough to know and early enough to matter.
+    #
+    # MEASURED, and the reason this is a bar rather than a preference: with the Locks merely returned
+    # to the open pool, five one-Elden-Ring seeds beside two Hollow Knight slots sent 0 of 32 to a
+    # partner. Not because anything refused them -- because Elden Ring supplies ~87% of the free
+    # checks, so the fill finds one of ours first every time. Wanting them to travel means saying so.
+    #
+    # NOT IN A SOLO SEED, for the same reason the own-world refusal below skips one: there is nowhere
+    # else, and barring them from our own world would make the seed unfillable rather than co-op.
+    if len(getattr(multiworld, "player_ids", ()) or ()) > 1:
+        from worlds.generic.Rules import forbid_items_for_player
+        for w in worlds:
+            names = {it.name for it in getattr(w, "gf_travelling_lock_items", ()) or ()}
+            if not names:
+                continue
+            for loc in multiworld.get_locations(w.player):
+                forbid_items_for_player(loc, names, w.player)
+            logging.getLogger("Greenfield").info(
+                "[greenfield] progression surface: %d travelling Lock(s) BARRED from player %d's own "
+                "world -- they must be found in somebody else's game: %s",
+                len(names), w.player, ", ".join(sorted(names)))
 
     items, locations, participants = [], [], []
     for w in worlds:
@@ -516,23 +670,42 @@ def place_released_locks(multiworld, worlds) -> None:
     # Forced on for every participating world, restored in `finally` so a raise cannot leak it.
     saved = [(w, getattr(w.options, "accessibility", None)) for w in participants]
     saved = [(w, acc, acc.value) for w, acc in saved if acc is not None]
+    # The own-world refusal (see the docstring). Installed on the gathered locations only, and torn
+    # down in the same `finally` as the accessibility override so neither can leak past this pass --
+    # these are real Location objects and a rule left behind would silently outlive the hook.
+    #
+    # 🛑 NOT IN A SOLO SEED. "Released" means "may go to another player", and in a one-slot seed there
+    # is no other player -- refusing our own world there would not send the Lock anywhere, it would
+    # only throw the curation away and drop the key on some ordinary check. ProgressionBias has said
+    # "no effect in a solo seed" since it shipped; this keeps that true. Caught by
+    # tests/test_gf_boss_progression.BossProgressionWithReleasedLocks, which is a solo world.
+    _multi = len(getattr(multiworld, "player_ids", ()) or ()) > 1
+    saved_rules = [(loc, loc.item_rule) for loc in locations] if _multi else []
     try:
         for _w, acc, _v in saved:
             acc.value = 0
+        if _multi:
+            for loc in locations:
+                loc.item_rule = (lambda item, _p=loc.player, _prev=loc.item_rule:
+                                 getattr(item, "player", None) != _p and _prev(item))
         fill_restrictive(multiworld, state, locations, items, **kwargs)
     finally:
         for _w, acc, v in saved:
             acc.value = v
+        for loc, rule in saved_rules:
+            loc.item_rule = rule
 
     # THE SPILL, and the whole reason this is a fill rather than a rule: anything the surfaces could
     # not host goes back to the general fill unconstrained. A seed loses CURATION, never generation.
+    # With a single Elden Ring slot this is now the ORDINARY path, not the fallback -- see the
+    # own-world exclusion in the docstring.
     for it in items:
         multiworld.itempool.append(it)
     logging.getLogger("Greenfield").info(
-        "[greenfield] progression surface: placed %d/%d RELEASED Lock(s) across %d Elden Ring "
-        "world(s); %d SPILLED to the general fill%s",
+        "[greenfield] progression surface: placed %d/%d RELEASED Lock(s) on ANOTHER Elden Ring "
+        "world's surface (%d participating); %d went to the general fill%s",
         n0 - len(items), n0, len(participants), len(items),
-        (" (curation only -- they still travel, just not onto a curated check): "
+        (" -- free to land in any player's world: "
          + ", ".join(sorted(it.name for it in items))) if items else "")
 
 
@@ -672,15 +845,60 @@ def regions_with_major_boss(region_names, tags_map=None, locations=None, barred=
 
 
 # ---- AP glue --------------------------------------------------------------------------------------
+def _boss_mode(world) -> int:
+    """The boss_progression rung, or 0 for off/absent/unrecognised. A value outside _BOSS_MODE_CLASSES
+    reads as OFF rather than raising: this is called from _selection and _mode, which run on every
+    world including the stubs the pure tests build, and an unknown rung must degrade to today's
+    behaviour rather than take generation down."""
+    o = getattr(getattr(world, "options", None), "boss_progression", None)
+    if o is None:
+        return 0
+    try:
+        v = int(o.value)
+    except (TypeError, ValueError):
+        return 0
+    return v if v in _BOSS_MODE_CLASSES else 0
+
+
+def _boss_mode_name(world) -> str:
+    """The yaml spelling of the active rung, for the log. Read off the live option (AP's Choice keeps
+    `current_key`) rather than a fourth table keyed by the same ints -- a hand-kept name map is how a
+    log line ends up naming the wrong mode after a rung is added."""
+    o = getattr(getattr(world, "options", None), "boss_progression", None)
+    name = getattr(o, "current_key", None)
+    return str(name) if name else "mode %d" % _boss_mode(world)
+
+
 def _selection(world):
     """The classes this world's surface is built from. ONE resolution, read by BOTH apply() (where the
     locks go) and slot_data() (what the client stars). If those two ever computed the surface
-    differently we would be back to two lists disagreeing -- which is the bug big-ticket was."""
+    differently we would be back to two lists disagreeing -- which is the bug big-ticket was.
+
+    boss_progression REPLACES the player's selection rather than intersecting it. Intersecting was the
+    other option and it is worse: `progression_surface` ships a nine-class default, so an intersection
+    with {Boss} would silently be {MajorBoss} for everyone who never touched that option -- a third
+    surface, belonging to neither setting, that nobody asked for."""
+    mode = _boss_mode(world)
+    if mode:
+        return _BOSS_MODE_CLASSES[mode]
     opt = getattr(world.options, "progression_surface", None)
     return opt.value if opt is not None else None
 
 
 def _mode(world):
+    """The enforcement mode, with boss_progression forcing STRICT.
+
+    🛑 THE FORCING IS LOAD-BEARING FOR THE MULTIWORLD HALF, not a convenience. confined_surface_ids()
+    returns None whenever this is 0, core._add_locations then installs NO foreign-advancement bar, and
+    another game's progression scatters over all ~4900 of our checks -- which is precisely the thing
+    boss_progression exists to prevent. A seed that reads as boss-gated, generates clean, and quietly
+    is not, is the worst outcome available here.
+
+    In a live world this is belt and braces: defaults.FROZEN_OPTIONS pins progression_surface_mode at
+    strict, so a player cannot turn it off. It is load-bearing for the STUB worlds the pure tests
+    build, where the option is simply absent and this would otherwise read 0."""
+    if _boss_mode(world):
+        return 2
     o = getattr(world.options, "progression_surface_mode", None)
     return int(o.value) if o is not None else 0
 
@@ -711,6 +929,20 @@ def _released_pct(world) -> int:
     if opt is None:
         return 0
     return 100 - int(opt.value)
+
+
+def _travel_pct(world) -> int:
+    """The share of RELEASED Locks that skip the cross-slot curation pass entirely.
+
+    Absent option -> 0, the pre-option behaviour (offer every released Lock to the other Elden Ring
+    slots first). Same convention as `_released_pct`: absent means "behave as before"."""
+    opt = getattr(getattr(world, "options", None), "progression_travel", None)
+    if opt is None:
+        return 0
+    try:
+        return max(0, min(100, int(opt.value)))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _restricted_items(world):
@@ -849,6 +1081,23 @@ def apply(world) -> None:
         _rel = {id(it) for it in released}
         to_place = [it for it in to_place if id(it) not in _rel]
     world.gf_locks_released = sorted(it.name for it in released)
+    # THE SECOND SPLIT (progression_travel). A released Lock is offered to the OTHER Elden Ring
+    # slots' surfaces unless this share says otherwise; a travelling one is simply never handed to
+    # `stage_pre_fill`, so it stays in the itempool the general fill draws from.
+    #
+    # 🛑 The draw is guarded on pct > 0 so the default consumes NO rng and the stream is byte-
+    # identical to before this option existed (CLAUDE.md rule 6). It sits AFTER the released_locks
+    # sample above for the same reason -- appending to the stream is safe, reordering it is not.
+    travelling = []
+    if released and _travel_pct(world) > 0:
+        travelling = released_locks(released, _travel_pct(world), world.random)
+        if travelling:
+            _trv = {id(it) for it in travelling}
+            released = [it for it in released if id(it) not in _trv]
+    world.gf_locks_travelling = sorted(it.name for it in travelling)
+    # The ITEMS, for stage_pre_fill: it has to bar these names from our own locations, and a name
+    # alone cannot say which player's copy is meant.
+    world.gf_travelling_lock_items = list(travelling)
     # The handle `stage_pre_fill` reads. The ITEMS, not the names: it has to remove these exact
     # objects from the pool and hand them to fill_restrictive.
     world.gf_released_lock_items = list(released)
@@ -856,7 +1105,9 @@ def apply(world) -> None:
     for it in to_place:
         mw.itempool.remove(it)
     strict = (mode == 2)
-    rungs = build_ladder(surface) if strict else [list(surface)]
+    # boss_progression forces strict (see _mode), so `rungs` is the boss ladder whenever it is on.
+    _boss = _boss_mode(world)
+    rungs = build_ladder(surface, _boss) if strict else [list(surface)]
     resolved = rungs[0] if rungs else list(surface)
     for classes in rungs:
         if not to_place:
@@ -899,11 +1150,48 @@ def apply(world) -> None:
         "(progression_bias %d)%s",
         len(world.gf_locks_released), 100 - _released_pct(world),
         (": " + ", ".join(world.gf_locks_released)) if world.gf_locks_released else "")
+    # Of those, the ones that skipped the cross-slot pass. A zero is a measurement, not a silence
+    # (CONTRIBUTING, Runtime visibility) -- but only worth a line once the player asked for travel.
+    if world.gf_locks_travelling:
+        logging.getLogger("Greenfield").info(
+            "[greenfield] progression surface: %d of them SKIP curation entirely "
+            "(progression_travel %d) and go straight to the open fill: %s",
+            len(world.gf_locks_travelling), _travel_pct(world),
+            ", ".join(world.gf_locks_travelling))
     logging.getLogger("Greenfield").info(
         "[greenfield] progression surface: rung %s placed %d/%d; %d SPILLED to normal fill%s",
         resolved, n0 - len(to_place), n0, len(to_place),
         (" (curation only -- winnability is guarded elsewhere): "
          + ", ".join(world.gf_prog_surface_spilled_names)) if to_place else "")
+
+    # BOSS PROGRESSION: state the mode's own promise every run, kept or not. The rung/spill lines
+    # above answer "did the surface hold?"; they cannot answer "is my key on a boss?", because the
+    # boss set is what this option MEANS and the surface is only how it is implemented. A zero is a
+    # measurement (CONTRIBUTING, Runtime visibility) -- the line is unconditional while the mode is on.
+    if _boss:
+        _on_boss, _off_boss = boss_placement_census(world, _boss)
+        world.gf_boss_progression = _boss
+        world.gf_boss_progression_on_boss = _on_boss
+        world.gf_boss_progression_off_boss = _off_boss
+        # "off" means off the surface the MODE asked for, which under major_bosses is not the same
+        # claim as "not on a boss": a widened rung can land a key on a FieldBoss, still a boss
+        # healthbar, just not a major one. Measured live at gen against the real fill (2026-08-14,
+        # major_bosses + num_regions:1): 1 on, 1 off -- and that 1 was on a field boss. Reporting it
+        # as "off a boss" would be false, so the wording names the requested class and mode 2
+        # re-measures the off set against the full Boss class.
+        _mode2 = _boss == 2
+        _still = (boss_placement_census(world, 1)[0] - _on_boss) if (_mode2 and _off_boss) else 0
+        logging.getLogger("Greenfield").info(
+            "[greenfield] boss progression (%s): %d progression item(s) ON a %s, %d elsewhere%s, "
+            "%d spilled to the general fill%s",
+            _boss_mode_name(world),
+            _on_boss, "major boss" if _mode2 else "boss", _off_boss,
+            (" (%d of them still on a lesser boss)" % _still) if _still else "",
+            len(to_place),
+            "" if not (_off_boss or to_place) else
+            " -- the bosses in play could not host every key; widen num_regions"
+            + (" or use `bosses` rather than `major_bosses`" if _mode2 else "")
+            + " if you want them all on one")
 
     # D (2026-07-10): break the boss-key <-> region-lock cycle. When boss_keys is on, the default
     # surface IS key-gated boss checks, and `_place` validates against get_all_state (which counts
@@ -937,6 +1225,34 @@ def apply(world) -> None:
             mw.itempool.append(world.create_filler())
             precollected += 1
     world.gf_prog_surface_keys_precollected = precollected
+
+
+def boss_placement_census(world, boss_mode):
+    """(on_boss, off_boss) over this world's OWN progression that apply() has already placed.
+
+    🛑 MEASURED FROM WHERE THE ITEMS LANDED, not from which rung was running when they were placed.
+    A widened rung hands fill_restrictive the boss checks AND the newly-allowed ones in one shuffled
+    list, so "the ladder left the boss surface" and "this key is not on a boss" are different claims
+    and only the second is the one the option promised. Attributing a whole rung's placements to
+    off-boss would over-report the degrade every time the ladder widened and then landed on a boss
+    anyway.
+
+    Spilled items are NOT counted: they have no location yet (they went back to the pool for the
+    general fill). gf_prog_surface_spilled / _spilled_names already report those separately."""
+    if not boss_mode:
+        return (0, 0)
+    ids = allowed_ap_ids(LOCATION_TAGS, selected_surface(_BOSS_MODE_CLASSES[boss_mode]),
+                         defaulted=_world_barred_aps(world))
+    on = off = 0
+    for loc in world.multiworld.get_locations(world.player):
+        it = getattr(loc, "item", None)
+        if it is None or not is_restricted_progression(it, world.player):
+            continue
+        if getattr(loc, "address", None) in ids:
+            on += 1
+        else:
+            off += 1
+    return (on, off)
 
 
 def audit_reachable(world) -> None:
@@ -1024,9 +1340,32 @@ class ProgressionSurfaceFeature(Feature):
     OPTIONS = {"progression_surface": ProgressionSurface,
                "progression_surface_mode": ProgressionSurfaceMode,
                "progression_bias": ProgressionBias,
-               "confine_foreign_progression": ConfineForeignProgression}
+               "progression_travel": ProgressionTravel,
+               "confine_foreign_progression": ConfineForeignProgression,
+               "boss_progression": BossProgression}
     # Placement runs centrally from core.pre_fill via apply() (locations exist + get_all_state valid).
     # The foreign-progression bar is set in core._add_locations (item_rule), using confined_surface_ids.
+
+    def generate_early(self, world):
+        """Reject the one combination boss_progression cannot mean anything in.
+
+        vanilla_placement pins EVERY location to its vanilla item and mints no Region Locks, so there
+        is no progression left for a surface to confine and no free slot for it to land in -- the
+        mode would generate clean and do nothing. The house rule for that is an OptionError naming
+        both options, not a silent no-op (features/keep_out_of_shops does the same for the same
+        reason). natural_progression is deliberately NOT rejected: it mints no Locks either, but it
+        DOES mint natural keys, which are this world's own progression and are confined normally."""
+        if not _boss_mode(world):
+            return
+        try:
+            from . import vanilla_placement as _vp
+        except ImportError:  # pragma: no cover -- feature not present
+            return
+        if _vp.is_on(world):
+            raise OptionError(
+                "[eldenring] boss_progression is on, but vanilla_placement pins every location to "
+                "its vanilla item and mints no Region Locks -- there is no progression to place on "
+                "a boss. Turn one of them off.")
 
     def slot_data(self, world):
         """Ship the surface to the CLIENT. This is the set the tracker stars.

@@ -49,6 +49,7 @@ _NO_PROGRESSION_APS = (frozenset(DEFAULTED_REGION_APS) | frozenset(ERDTREE_BURN_
 from .region_spine import (compute_kept, describe_kept, GOAL_REGION, DLC_REGIONS,  # noqa: F401 (GOAL_REGION used by tests/features)
                            base_regions, dlc_regions, REGION_PARENT)
 from . import registry
+from .item_categories import USEFUL_GOODS  # the GOODS core classifies `useful`, not filler
 from .defaults import FROZEN_OPTIONS, apply_frozen
 from . import contract
 from . import features as _features  # noqa: F401  -- import triggers feature self-registration
@@ -311,14 +312,30 @@ _AP_IDS_TO_ITEM_IDS: Dict[str, int] = {str(item_name_to_id[FILLER]): _FILLER_GAM
 # real-item-pool: register each distinct vanilla item as an AP item (id -> game FullID). GOODS are
 # filler; weapons/armor/accessories/ashes are useful. Locks remain the only progression.
 _REAL_ITEM_BASE = 7790000
-def _classify_full(full: int) -> ItemClassification:
+
+# THE PERMANENT POWER-UPS (item_categories.USEFUL_GOODS). The nibble rule below files every GOOD as
+# filler, which is right for 900 consumables and crafting mats and wrong for exactly these: they are
+# consumed once and raise a stat for the rest of the run. A Golden Seed is not a Smithing Stone.
+#
+# 🛑 WHY THE PROMOTION LIVES HERE AND NOT IN A FEATURE. A feature declaring these in ITEMS would give
+# them an AP id BEFORE the catalog loop below, whose `if _nm not in item_name_to_id` guard would then
+# SKIP them -- including the `_AP_IDS_TO_ITEM_IDS` line, leaving a name the client can never resolve
+# to a game item. That is the scadu_supply trap documented under ITEM_GRANTS below. The set itself
+# lives in item_categories because features may not import core; the classification is applied here.
+#
+# Talismans are deliberately absent: they are ACCESSORY-nibble, so the rule already calls them
+# useful. Smithing/Somber stones and gloveworts are deliberately absent too -- they are a graded
+# economy features/filler_budget tunes as filler, and promoting them would move that whole floor.
+def _classify_full(full: int, name: str = "") -> ItemClassification:
+    if name in USEFUL_GOODS:
+        return ItemClassification.useful
     return ItemClassification.filler if (full & 0xF0000000) == _GOODS_NIBBLE else ItemClassification.useful
 for _idx, _nm in enumerate(sorted(ITEM_CATALOG)):
     if _nm not in item_name_to_id:
         _aid = _REAL_ITEM_BASE + _idx
         item_name_to_id[_nm] = _aid
         _AP_IDS_TO_ITEM_IDS[str(_aid)] = ITEM_CATALOG[_nm]
-        _item_class[_nm] = _classify_full(ITEM_CATALOG[_nm])
+        _item_class[_nm] = _classify_full(ITEM_CATALOG[_nm], _nm)
 
 # FEATURE-MINTED GRANTS. `registry.allocate_item_ids` gives a feature's ITEMS an AP id, but nothing
 # tells the client what one resolves to: `_AP_IDS_TO_ITEM_IDS` is built from ITEM_CATALOG above, so
@@ -386,9 +403,10 @@ _OPTION_GROUPS = [
         "pool_builder_pct_armor", "pool_builder_pct_spells", "pool_builder_pct_talismans",
         "pool_builder_pct_ashes_of_war"]),
     ("Multiworld & Placement", [
-        "death_link", "filler_foreign_pct", "progression_surface", "progression_bias",
-        "confine_foreign_progression", "local_item_only", "exclude_local_item_only",
-        "keep_local", "keep_local_rune_cap"]),
+        "death_link", "filler_foreign_pct", "share_useful_pct", "boss_progression",
+        "progression_surface", "progression_bias", "progression_travel",
+        "confine_foreign_progression", "local_item_only",
+        "exclude_local_item_only", "keep_local", "keep_local_rune_cap"]),
     ("Shops & Merchants", [
         "keep_out_of_shops", "no_runes_in_shops", "merchant_bells_on_talk", "merchant_bell_logic",
         "reroll_infinite_shop_stock", "infinite_hub_wares", "progressive_stone_bells"]),

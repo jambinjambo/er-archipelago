@@ -86,6 +86,22 @@ GOODS_TYPE_CATEGORY: Dict[int, str] = {
     18: "spells",
 }
 
+# THE PERMANENT POWER-UPS, carved out of the goods for CLASSIFICATION rather than for a category.
+# They keep their category (`upgrade_materials`) -- a player asking to keep_local their upgrade
+# materials means these too -- but core classifies them `useful` instead of `filler`, because they
+# are consumed once and raise a stat for the rest of the run. That makes them the one place where
+# "which inventory tab is this in" and "how much does finding it matter" genuinely disagree.
+#
+# It lives here rather than in core because features may not import ..core (circular), and
+# features/filler_foreign has to subtract exactly this set from its nibble-derived filler list or
+# the two would call the same item different things. core imports it from here.
+USEFUL_GOODS = frozenset({
+    "Golden Seed",              # +1 flask charge, permanent
+    "Sacred Tear",              # +1 flask potency, permanent
+    "Scadutree Fragment",       # the DLC's damage/defence ladder
+    "Revered Spirit Ash",       # the DLC's spirit-ash ladder
+})
+
 # `runes` is not a goodsType -- it is carved out of type 0 by the payout column (see _goods_category),
 # so it has to be named here or it drops out of every set built from GOODS_TYPE_CATEGORY.
 RUNES_CATEGORY = "runes"

@@ -121,6 +121,56 @@ PRESETS = [
         "values": {"vanilla_placement": "all", "death_link": True},
     },
     {
+        "id": "boss_rush",
+        "title": "Bosses Hold the Keys",
+        "tagline": "Every key item is a boss drop.",
+        "description": "Base game, six regions, and every progression item -- your Region Locks "
+                       "and any gate keys -- placed on a BOSS in a region you have already opened. "
+                       "Ordinary loot is untouched: chests, corpses and merchants still pay out "
+                       "what they would have. In a multiworld the same rule holds other players' "
+                       "progression, so an Elden Ring boss can be sitting on somebody else's way "
+                       "forward. The price of that is real and worth knowing: holding a partner's "
+                       "keys to our bosses pushes the rest of their progression back into their "
+                       "own world, and Archipelago fills those slots before it places the useful "
+                       "tier -- so a non-Elden-Ring partner will receive mostly filler from us. "
+                       "Lower Confine Foreign Progression if you would rather your gear travelled, "
+                       "or raise Share Useful Items to push some of it out deliberately. This "
+                       "preset also pins every Region Lock in your own world; if you want your keys "
+                       "to travel to your partners instead, use Shared Fate below.",
+        # progression_bias 100 is stated because the preset's PROMISE is "your keys are on your
+        # bosses". At the option default of 0 every Lock is released to the multiworld pool, so in
+        # a multiworld roughly half of them sit on somebody ELSE's checks -- still curated, but no
+        # longer a boss of yours, which is not what the title says.
+        #
+        # confine_foreign_progression is the OTHER half of what this preset means and is deliberately
+        # NOT listed: it already defaults to 100, and validate_presets rejects any value equal to the
+        # default (presets carry deviations only). So the description carries it instead. If that
+        # default ever moves, this preset stops delivering its multiworld half silently -- the same
+        # hazard the num_regions comments above describe, and the reason the description names the
+        # behaviour rather than trusting the number.
+        "values": {"enable_dlc": False, "boss_progression": "bosses",
+                   "progression_bias": 100},
+    },
+    {
+        "id": "shared_fate",
+        "title": "Shared Fate",
+        "tagline": "Your keys are in their world, and theirs are on your bosses.",
+        "description": "Bosses hold the keys, the same as Bosses Hold the Keys -- but your Region "
+                       "Locks are NOT pinned at home. They go into the multiworld, so the partner "
+                       "who opens Liurnia for you is another player, and the boss you kill is "
+                       "holding their way forward. A quarter of your gear is pushed out to them as "
+                       "well, so what they get from Elden Ring is not only Smithing Stones. Made "
+                       "for a co-op multiworld and pointless in a solo seed, where there is nowhere "
+                       "for anything to travel to.",
+        # progression_bias and progression_travel are BOTH at their defaults (0) and so cannot be
+        # listed -- validate_presets rejects a value equal to the default, presets carry deviations
+        # only. That is fine and not an accident: bias 0 already releases every Lock, and since
+        # 2026-08-15 a released Lock is genuinely never handed back to its own world, so the default
+        # IS the travelling behaviour. share_useful_pct is the only knob here that has to be stated.
+        "values": {"enable_dlc": False, "boss_progression": "bosses",
+                   "share_useful_pct": 25},
+    },
+    {
         "id": "dlc_only",
         "title": "DLC Only (experimental)",
         "tagline": "Only the Shadow of the Erdtree regions.",

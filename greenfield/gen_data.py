@@ -38,8 +38,10 @@ try:
     _bspec = _ilu.spec_from_file_location("_boss_drops", os.path.join(HERE, "eldenring", "boss_drops.py"))
     _bmod = _ilu.module_from_spec(_bspec); _bspec.loader.exec_module(_bmod)
     _BOSS_DROP_FLAGS = frozenset(_bmod.BOSS_DROP_FLAGS)
+    _BOSS_DROP_ENTITY = dict(getattr(_bmod, "BOSS_DROP_ENTITY", {}))       # drop flag -> boss ENTITY id
 except Exception as _e:
     _BOSS_DROP_FLAGS = frozenset()
+    _BOSS_DROP_ENTITY = {}
     print(f"[gen_data] boss_drops.py unavailable ({_e!r}); Boss tag empty -- run tools/datamine_boss_drops.py")
 # Mini-dungeon / scripted BOSS-REWARD lots (tools/datamine_boss_reward_lots.py). common.emevd awards
 # these off a reward flag the MAP emevd flips -- neither NpcParam (itemLotId_enemy is -1 on these
@@ -882,7 +884,66 @@ if _bad_pins:
         % (len(_bad_pins), _lines))
 print(f"location desc: multi-merchant shop rows guarded = {len(_MULTI_MERCHANT)} "
       f"(no single-seller hand pin permitted on any of them)")
-_BOSS_NAMES    = {}                                                # 2. TODO drop-flag -> boss name join
+# ---- desc layer 2: WHICH BOSS DROPS IT -----------------------------------------------------------
+# This was `{}` with a TODO from the day desc_sources shipped, so layer 2 never fired and every boss
+# drop fell through to layer 4/4b -- the nearest GRACE. That descriptor answers "where is it", and for
+# a boss drop the player needs "what do I have to kill": the check read
+#     Altus :: Crimsonspill Crystal Tear [f65000]
+# when the tear is the Wormface's drop, and
+#     Altus :: Godskin Peeler - around Windmill Heights [f530325]
+# which names a grace roughly 100 m from the Godskin Apostle who actually holds it. Measured on the
+# committed data: of the 214 Boss-tagged checks, 143 showed a grace/locale/bare descriptor. Found
+# 2026-08-24 when Alaric read a cross-game spoiler and correctly doubted that a Crystal Tear was a
+# boss check -- the NAME gave him no way to tell, and a hint or a tracker row gives a player none.
+#
+# TWO JOINS, and they are NOT the same key.
+#   * BOSS_REWARD_DEFEAT maps reward flag -> boss DEFEAT FLAG, which is exactly what BOSS_HEALTHBARS
+#     is keyed by. Documented, exact.
+#   * BOSS_DROP_ENTITY maps drop flag -> boss ENTITY ID. boss_healthbars' own docstring warns that
+#     "entity id != defeat flag for night/duo/festival bosses", so this join is a coincidence that
+#     holds for the ordinary case and MISSES otherwise. A miss is safe (the check keeps its old
+#     descriptor); a WRONG name is not, so a flag the two joins disagree about is a hard error.
+# Neither table is consulted for anything but its name field, which boss_healthbars marks "advisory"
+# -- advisory is right for logic and exactly right for a label.
+def _build_boss_names():
+    _out, _clash = {}, []
+    for _fl, _defeat in _BOSS_REWARD_DEFEAT.items():                 # exact: defeat flag -> healthbar
+        _hb = BOSS_HEALTHBARS.get(_defeat)
+        if _hb and _hb[3]:
+            _out[_fl] = _hb[3]
+    for _fl, _ent in _BOSS_DROP_ENTITY.items():                      # entity id, when it IS a key
+        _hb = BOSS_HEALTHBARS.get(_ent)
+        if not (_hb and _hb[3]):
+            continue
+        if _fl in _out and _out[_fl] != _hb[3]:
+            _clash.append((_fl, _out[_fl], _hb[3]))
+        else:
+            _out[_fl] = _hb[3]
+    if _clash:
+        raise SystemExit(
+            "gen_data: %d boss-drop flag(s) resolve to TWO DIFFERENT bosses -- the reward-flag join and "
+            "the entity join disagree, so one of them is naming the wrong fight and the check would ship "
+            "a label that sends the player at it:\n%s"
+            % (len(_clash), "\n".join("    flag %d: %r (reward join) vs %r (entity join)" % _c
+                                      for _c in _clash)))
+    # A HAND OVERRIDE THE DERIVATION NOW MAKES MUST GO -- same rule, same hard error, as
+    # _BOSS_DROP_EXTRAS above. Four rows (Elden Beast, Regal Ancestor Spirit, Divine Beast Dancing
+    # Lion, Putrescent Knight) became redundant the moment this join existed and were deleted from
+    # location_descriptions.tsv in the same commit. A layer-1 row that DIFFERS is not redundant and is
+    # not touched: 30 of them deliberately shorten the in-game name ("Morgott", not "Morgott, the Omen
+    # King") because the item is already "Remembrance of the Omen King". Layer 1 winning is the point.
+    _dead = sorted(_f for _f, _n in _DESC_OVERRIDE.items() if _out.get(_f) == _n)
+    if _dead:
+        raise SystemExit(
+            "gen_data: %d row(s) in location_descriptions.tsv now say exactly what the layer-2 boss "
+            "join derives, so they override nothing and only hide which entries are load-bearing. "
+            "DELETE them:\n%s"
+            % (len(_dead), "\n".join("    %d\t%s" % (_f, _out[_f]) for _f in _dead)))
+    return _out
+
+_BOSS_NAMES    = _build_boss_names()                               # 2. drop/reward flag -> boss name
+print(f"location desc: boss-name layer = {len(_BOSS_NAMES)} flag(s) "
+      f"({len(_BOSS_REWARD_DEFEAT)} reward-flag join + {len(_BOSS_DROP_ENTITY)} entity join, deduped)")
 _SPOT_EN       = _load_flag_str_tsv("treasure_name_en.tsv")        # 3. curated place phrases (EN)
 _NEAREST_GRACE = _load_flag_str_tsv("nearest_grace.tsv")           # 4. per-check nearest grace (Windows)
 def _load_shop_sellers():

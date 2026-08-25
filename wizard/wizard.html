@@ -166,7 +166,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
  "game": "Elden Ring",
  "apworld_version": "0.3.12",
  "source": "greenfield/eldenring core.py -> GFOptions (imported, upstream AP 0.6.7)",
- "source_sha256": "bcc7e13aecd11a3d24a8363e2a4c81b05b8c7c27092be3f0432cef9975b75e77",
+ "source_sha256": "d22d72a2fbfa523153e523e72b28cb20c1a550f9dd52c5114cb04d58053e3293",
  "field_order": [
   "num_regions",
   "num_regions_order",
@@ -207,7 +207,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
   "no_runes_in_shops",
   "progression_surface",
   "progression_bias",
+  "progression_travel",
   "confine_foreign_progression",
+  "boss_progression",
   "enemy_scaling",
   "minimum_enemy_difficulty",
   "maximum_enemy_difficulty",
@@ -215,6 +217,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
   "scadutree_blessing_scope",
   "dlc_blessing_catchup",
   "global_scadutree_blessing",
+  "share_useful_pct",
   "reroll_infinite_shop_stock",
   "infinite_hub_wares",
   "merchant_bell_logic",
@@ -287,8 +290,11 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "options": [
     "death_link",
     "filler_foreign_pct",
+    "share_useful_pct",
+    "boss_progression",
     "progression_surface",
     "progression_bias",
+    "progression_travel",
     "confine_foreign_progression",
     "local_item_only",
     "exclude_local_item_only",
@@ -1335,6 +1341,25 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "special_values": null
   },
   {
+   "key": "progression_travel",
+   "class": "ProgressionTravel",
+   "display_name": "Progression Travel",
+   "description": "Of the Region Locks that Progression Bias lets go, the share that skips curation entirely and\ngoes straight into the open multiworld fill.\n\nProgression Bias decides HOW MANY of your Locks leave your reserved checks. This decides how far\nthey go.\n\nAt 0 (default) a released Lock is offered to ANOTHER Elden Ring slot's Progression Surface, so in\na multi-Elden-Ring seed your key still lands on somebody's boss or remembrance. If no other Elden\nRing slot can host it, it goes into the open pool and may land anywhere.\n\nAbove 0, that share is FORCED OUT of your world entirely: those Locks may not be placed in your\ngame at all, so the player who opens Liurnia for you is somebody else, and you cannot get there\nuntil they find it. That is the co-op setting, and it is a promise rather than a tendency --\nmerely allowing a Lock to travel does not make it travel. Measured on five seeds with one Elden\nRing slot beside two Hollow Knight slots: with the Locks simply returned to the open pool, 0 of\n32 reached a partner, because Elden Ring supplies most of the checks and the fill finds one of\nours first every time.\n\nA released Lock is never handed back to your own world at any setting.\n\n🛑 SOMEBODY ELSE HAS TO BE ABLE TO HOLD IT. Every forced-out Lock needs a reachable check in a\npartner world, and a seed with one small partner has few. High values there make generation work\nhard. It never costs winnability -- Archipelago places progression in a reachable order whichever\nworld it lands in -- but it does mean waiting on your friends, which is the point.\n\nNo effect in a solo seed, nor in the modes that mint no Lock items (natural progression, vanilla\nplacement).",
+   "kind": "range",
+   "base": "Range",
+   "default": 0,
+   "choices": null,
+   "range": {
+    "start": 0,
+    "end": 100
+   },
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null
+  },
+  {
    "key": "confine_foreign_progression",
    "class": "ConfineForeignProgression",
    "display_name": "Confine Foreign Progression",
@@ -1369,6 +1394,35 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "value": 100
     }
    ]
+  },
+  {
+   "key": "boss_progression",
+   "class": "BossProgression",
+   "display_name": "Boss Progression",
+   "description": "MAKE BOSSES THE KEYS. Every progression item this seed requires -- your Region Locks, and any\nGreat Runes or legacy keys the gates ask for -- is placed on a BOSS, in a region you have already\nopened. Ordinary loot is untouched: every chest, corpse and merchant row still pays out exactly\nwhat it would have. What changes is where the things you NEED can be.\n\n  off           Progression Surface below decides, as it does today (default).\n  bosses        every boss healthbar in play is a candidate. The one to pick.\n  major_bosses  only the named majors, the legacy-dungeon bosses and the remembrance drops.\n                A much tighter run -- but in a small region that can come down to a single\n                check, and then the seed is likelier to fall back off bosses (see below).\n\nTurning this on REPLACES your Progression Surface selection: that option lists the location\nclasses progression may use, and this one overrides the list with the bosses. Set this and leave\nProgression Surface alone -- they are the same lever, and this is the version of it that says\nwhat it does.\n\nIN A MULTIWORLD IT GOVERNS OTHER PLAYERS' KEYS TOO. Another game's progression may then only land\non your bosses as well, so an Elden Ring boss can be holding somebody else's way forward. Confine\nForeign Progression decides what share of it is held that way.\n\n🛑 THAT IS A BAR, NOT A MAGNET. It fixes WHERE another world's progression lands in your game; it\ndoes not make more of it arrive, and it makes less. Barred from your ordinary checks, a partner's\nkeys have nowhere to go but the partner's own world -- and Archipelago fills those before it\nplaces the `useful` tier, so a non-Elden-Ring partner ends up receiving mostly filler from you.\nConfine Foreign Progression is the knob that trades that back.\n\nIt can never fail to generate. When the bosses in play cannot host every key -- a very small\n`num_regions` is how you get there -- the placement widens off them one step at a time, and the\ngeneration log names every key that did not get a boss.",
+   "kind": "choice",
+   "base": "Choice",
+   "default": "off",
+   "choices": [
+    {
+     "name": "off",
+     "value": 0
+    },
+    {
+     "name": "bosses",
+     "value": 1
+    },
+    {
+     "name": "major_bosses",
+     "value": 2
+    }
+   ],
+   "range": null,
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null
   },
   {
    "key": "enemy_scaling",
@@ -1512,6 +1566,25 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     }
    ],
    "range": null,
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null
+  },
+  {
+   "key": "share_useful_pct",
+   "class": "ShareUsefulPct",
+   "display_name": "Share Useful Items",
+   "description": "What share of your useful items -- weapons, armour, talismans, spells, ashes of war, Golden\nSeeds and Sacred Tears -- is forced OUT of your own world and into somebody else's.\n\n0 (default) forces nothing out. That does not mean nothing travels: your useful items are already\nfree to land anywhere. It means Archipelago is free to leave them all at home, and in a seed\nwhere Elden Ring is much larger than its partners it will -- measured on a four-slot seed beside\ntwo Hollow Knight slots, 1,473 of 1,473 useful Elden Ring items stayed in Elden Ring worlds, none\nreached Hollow Knight, and the reason is pure arithmetic: Elden Ring supplies most of the free\nchecks, so it absorbs most of the items. The bigger your world is relative to your partners', the\nmore this knob is doing.\n\nAt 20, about a fifth of your distinct useful item names may not be placed in your own world at\nall, so the fill has to find a partner check for them. Your partners open Elden Ring weapons and\ntalismans instead of only Smithing Stones.\n\nA share of NAMES, not of copies: at 20 roughly one useful name in five is forced out, and every\ncopy of that name goes with it.\n\n🛑 KEEP IT MODEST. Every forced-out name has to fit somewhere else, and a small partner world\nfills up. High values on a seed with one tiny partner make generation work hard and can push it\nto swap placements it would rather not. This never affects winnability -- Region Locks are the\nprogression and this knob does not touch them.\n\nNo effect in a solo seed, or with Shuffle Vanilla Items off (there are no real items to share).\nItems you have already held back with Local Items Only or Keep Local stay held back: Archipelago\nprefers local, so this only moves what is still free to move.",
+   "kind": "range",
+   "base": "Range",
+   "default": 0,
+   "choices": null,
+   "range": {
+    "start": 0,
+    "end": 100
+   },
    "valid_keys": null,
    "casefold": false,
    "group": null,
@@ -1698,6 +1771,28 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "values": {
     "vanilla_placement": "all",
     "death_link": true
+   }
+  },
+  {
+   "id": "boss_rush",
+   "title": "Bosses Hold the Keys",
+   "tagline": "Every key item is a boss drop.",
+   "description": "Base game, six regions, and every progression item -- your Region Locks and any gate keys -- placed on a BOSS in a region you have already opened. Ordinary loot is untouched: chests, corpses and merchants still pay out what they would have. In a multiworld the same rule holds other players' progression, so an Elden Ring boss can be sitting on somebody else's way forward. The price of that is real and worth knowing: holding a partner's keys to our bosses pushes the rest of their progression back into their own world, and Archipelago fills those slots before it places the useful tier -- so a non-Elden-Ring partner will receive mostly filler from us. Lower Confine Foreign Progression if you would rather your gear travelled, or raise Share Useful Items to push some of it out deliberately. This preset also pins every Region Lock in your own world; if you want your keys to travel to your partners instead, use Shared Fate below.",
+   "values": {
+    "enable_dlc": false,
+    "boss_progression": "bosses",
+    "progression_bias": 100
+   }
+  },
+  {
+   "id": "shared_fate",
+   "title": "Shared Fate",
+   "tagline": "Your keys are in their world, and theirs are on your bosses.",
+   "description": "Bosses hold the keys, the same as Bosses Hold the Keys -- but your Region Locks are NOT pinned at home. They go into the multiworld, so the partner who opens Liurnia for you is another player, and the boss you kill is holding their way forward. A quarter of your gear is pushed out to them as well, so what they get from Elden Ring is not only Smithing Stones. Made for a co-op multiworld and pointless in a solo seed, where there is nowhere for anything to travel to.",
+   "values": {
+    "enable_dlc": false,
+    "boss_progression": "bosses",
+    "share_useful_pct": 25
    }
   },
   {

@@ -88,6 +88,75 @@ region's own Lock, never in place of it:
 Neither can strand a seed: the key is always placed reachably, and the rune
 requirement is auto-clamped to the Great Runes actually in your seed.
 
+### Bosses hold the keys
+
+`boss_progression` puts every progression item -- your Region Locks and any gate
+keys -- on a **boss**, in a region you've already opened. Ordinary loot doesn't
+move: chests, corpses and merchants still pay out what they would have. What
+changes is where the things you *need* can be, so opening a region means going
+and killing what lives there.
+
+```yaml
+boss_progression: bosses        # off | bosses | major_bosses
+```
+
+`bosses` uses every boss healthbar in play and is the one to pick.
+`major_bosses` is the named majors, the legacy-dungeon bosses and the
+remembrance drops -- a tighter run, but a small region can come down to a single
+check.
+
+**In a multiworld it holds other players' progression to your bosses too**, so an
+Elden Ring boss can be sitting on somebody else's way forward.
+
+> 🛑 That's a *bar*, not a magnet. It fixes **where** another world's progression
+> lands in your game; it doesn't make more of it arrive, and it makes less. Barred
+> from your ordinary checks, a partner's keys have nowhere to go but the partner's
+> own world -- and Archipelago fills those before it places the `useful` tier, so
+> a non-Elden-Ring partner ends up receiving mostly filler from you. Lower
+> `confine_foreign_progression` if you'd rather your gear travelled.
+
+It can't fail to generate. If the bosses in play can't host every key -- a very
+small `num_regions` is how you get there -- placement widens off them one step at
+a time and the generation log names every key that didn't get a boss.
+
+This replaces `progression_surface`; set one or the other, not both.
+
+### Playing with other people, properly
+
+Archipelago's whole point is that your progress and your friends' progress are
+the same thing. Two knobs decide whether that's actually true of an Elden Ring
+slot, and **both defaults changed in v0.3.9** because measurement showed the old
+behaviour didn't do what it said.
+
+**Your keys go into the multiworld.** `progression_bias: 0` (the default) puts
+every Region Lock into the pool, so the player who opens Liurnia for you is
+somebody else, and the boss you kill may be holding their way forward. Until
+v0.3.9 that release was swallowed -- a "released" Lock got handed straight back
+to your own checks, and in five measured four-slot seeds not one of sixteen
+released Locks ever reached a partner. It does now. Set `progression_bias: 100`
+if you'd rather keep your keys at home.
+
+**Your gear has to be pushed out, or it won't go.** This is the surprising one.
+
+```yaml
+share_useful_pct: 25        # 0 = force nothing out
+```
+
+Your weapons, armour, talismans and Golden Seeds are *allowed* to travel already.
+They just don't. Archipelago hands the `useful` tier the first free checks it
+finds, and Elden Ring is enormous next to most partner games -- so it supplies
+most of the free checks and absorbs nearly all of its own gear. Measured on a
+four-slot seed beside two Hollow Knight slots: **1,473 of 1,473** useful Elden
+Ring items stayed in Elden Ring worlds. Hollow Knight got Smithing Stones and
+Golden Runes, and nothing else, all game.
+
+`share_useful_pct` forces that share of your distinct gear names *out* of your
+own world, so the fill has to find a partner check for them. 20–30 is a good
+co-op setting. Keep it modest: everything forced out has to fit somewhere else,
+and a small partner world fills up. It never affects winnability.
+
+The `shared-fate` preset sets both of these along with `boss_progression`.
+
 ### Reading the tracker
 
 Press **F6** (or use the **Tracker** entry in the overlay menu bar). It lists

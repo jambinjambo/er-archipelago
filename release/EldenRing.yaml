@@ -332,13 +332,52 @@ Elden Ring:
   # multiworld. 100 = fully shared. 0 = keep your filler to yourself.
   filler_foreign_pct: 100
 
+  # SHARE OF YOUR GEAR THAT MUST LEAVE. Weapons, armour, talismans, spells, ashes
+  # of war, Golden Seeds and Sacred Tears. 0 (default) forces none of it out.
+  #
+  # 🛑 0 DOES NOT MEAN "SPREAD IT EVENLY". Your useful items are already allowed to
+  # travel; this decides whether any of them HAVE to. Archipelago hands the useful
+  # tier the first free checks it finds, and in a seed where Elden Ring is far
+  # larger than its partners those are nearly all Elden Ring checks. Measured on a
+  # four-slot seed beside two Hollow Knight slots: 1,473 of 1,473 useful Elden Ring
+  # items stayed in Elden Ring worlds and Hollow Knight received nothing but goods.
+  # The bigger your world is next to your partners', the more this knob is doing.
+  #
+  # 20-30 is a good co-op setting: about that share of your distinct gear names can
+  # no longer be placed at home, so your partners open Elden Ring weapons instead
+  # of only Smithing Stones. Keep it modest -- every forced-out name has to fit in
+  # somebody else's world, and a small partner fills up. Never affects winnability.
+  share_useful_pct: 0
+
   # On: every real vanilla item this seed produces stays in YOUR world.
   local_item_only: false
 
   # ---- Where progression may hide -------------------------------------------
 
+  # BOSSES HOLD THE KEYS. Put every progression item -- your Region Locks and any
+  # gate keys -- on a BOSS, in a region you have already opened. Ordinary loot is
+  # untouched: chests, corpses and merchants still pay out what they would have.
+  # What changes is where the things you NEED can be.
+  #   off           progression_surface below decides, as before (the default)
+  #   bosses        every boss healthbar in play is a candidate -- the one to pick
+  #   major_bosses  only named majors, legacy-dungeon bosses and remembrance drops.
+  #                 Tighter, but a small region can come down to one check, so the
+  #                 seed is likelier to fall back off bosses.
+  # This REPLACES progression_surface below -- set one or the other, not both.
+  #
+  # In a MULTIWORLD it governs other players' keys too: their progression may then
+  # only land on your bosses as well, so an Elden Ring boss can be holding somebody
+  # else's way forward. 🛑 That is a BAR, not a magnet -- see
+  # confine_foreign_progression below for what it costs your partners.
+  #
+  # It can never fail to generate. When the bosses in play cannot host every key (a
+  # very small num_regions is how you get there) placement widens off them one step
+  # at a time, and the generation log names every key that did not get a boss.
+  boss_progression: off
+
   # WHICH LOCATIONS MAY HOLD PROGRESSION. Shrinking this makes the run tighter
   # and more predictable; widening it scatters key items further afield.
+  # Ignored while boss_progression above is on.
   progression_surface:
     - MajorBoss
     - Remembrance
@@ -368,6 +407,23 @@ Elden Ring:
   #
   # No effect in a solo seed. Never blocks generation.
   confine_foreign_progression: 100
+
+  # WHERE YOUR OWN KEYS GO, in a multiworld. 0 (default) reserves none of your
+  # Region Locks for yourself: every one goes into the multiworld, and somebody
+  # else may be the player who opens Liurnia for you. 100 pins them all at home.
+  # A share, not a mood -- at 40, about 40% stay yours.
+  #
+  # A released Lock is never handed back to your own world. Until v0.3.9 it was:
+  # the release was real and the travel was not, and a Lock "released to the pool"
+  # in a seed with one Elden Ring slot simply landed back on your own surface.
+  progression_bias: 0
+
+  # Of the Locks that leave, the share that skips curation entirely. At 0 (default)
+  # a released Lock is first offered to ANOTHER Elden Ring slot's progression
+  # surface, so in an all-Elden-Ring multiworld your key still lands on somebody's
+  # boss. At 100 it never is -- straight into the open pool, any reachable check in
+  # any game. With only one Elden Ring slot in the seed these do the same thing.
+  progression_travel: 0
 
   # RESERVED. The option exists but is INERT in v0.2 -- shop checks are assumed
   # reachable regardless of what you set here. Left in place so seeds stay
