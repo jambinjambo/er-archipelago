@@ -3,7 +3,7 @@
  "game": "Elden Ring",
  "apworld_version": "0.5.1",
  "source": "greenfield/eldenring core.py -> GFOptions (imported, upstream AP 0.6.7)",
- "source_sha256": "c0eac42688afd741bdeec4438ce8aaa27b2331c47126891fdae8c2a18af824f2",
+ "source_sha256": "8079f9530ee3f3552f8fe2dab95625e171bc3c038013e8efdf14e69eed531029",
  "field_order": [
   "num_regions",
   "num_regions_order",
@@ -50,6 +50,7 @@
   "confine_foreign_progression",
   "cross_game_progression",
   "goal_region_unlock_policy",
+  "boss_progression",
   "region_sync",
   "enemy_scaling",
   "minimum_enemy_difficulty",
@@ -144,6 +145,7 @@
     "trap_link",
     "region_sync",
     "filler_foreign_pct",
+    "boss_progression",
     "progression_surface",
     "progression_bias",
     "cross_game_progression",
@@ -1528,6 +1530,36 @@
    "essential": true
   },
   {
+   "key": "boss_progression",
+   "class": "BossProgression",
+   "display_name": "Boss Progression",
+   "description": "MAKE BOSSES THE KEYS. Every progression item this seed requires -- your Region Locks, and any\nGreat Runes or legacy keys the gates ask for -- is placed on a BOSS, in a region you have already\nopened. Ordinary loot is untouched: every chest, corpse and merchant row still pays out exactly\nwhat it would have. What changes is where the things you NEED can be.\n\n  off           Progression Surface below decides, as it does today (default).\n  bosses        every boss healthbar in play is a candidate. The one to pick.\n  major_bosses  only the named majors, the legacy-dungeon bosses and the remembrance drops.\n                A much tighter run -- but in a small region that can come down to a single\n                check, and then the seed is likelier to fall back off bosses (see below).\n\nTurning this on REPLACES your Progression Surface selection: that option lists the location\nclasses progression may use, and this one overrides the list with the bosses. Set this and leave\nProgression Surface alone -- they are the same lever, and this is the version of it that says\nwhat it does.\n\nIN A MULTIWORLD IT GOVERNS OTHER PLAYERS' KEYS TOO. Another game's progression may then only land\non your bosses as well, so an Elden Ring boss can be holding somebody else's way forward. Confine\nForeign Progression decides what share of it is held that way.\n\n🛑 THAT IS A BAR, NOT A MAGNET. It fixes WHERE another world's progression lands in your game; it\ndoes not make more of it arrive. Cross Game Progression is the option that sends yours outward,\nand Elden Ring reserves a share of its useful items for partners on its own.\n\nIt can never fail to generate. When the bosses in play cannot host every key -- a very small\n`num_regions` is how you get there -- the placement widens off them one step at a time, and the\ngeneration log names every key that did not get a boss.",
+   "kind": "choice",
+   "base": "Choice",
+   "default": "off",
+   "choices": [
+    {
+     "name": "off",
+     "value": 0
+    },
+    {
+     "name": "bosses",
+     "value": 1
+    },
+    {
+     "name": "major_bosses",
+     "value": 2
+    }
+   ],
+   "range": null,
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null,
+   "essential": false
+  },
+  {
    "key": "region_sync",
    "class": "RegionSync",
    "display_name": "Region Sync",
@@ -2450,6 +2482,27 @@
    "values": {
     "vanilla_placement": "all",
     "death_link": true
+   }
+  },
+  {
+   "id": "boss_rush",
+   "title": "Bosses Hold the Keys",
+   "tagline": "Every key item is a boss drop.",
+   "description": "Base game, and every progression item -- your Region Locks and any gate keys -- placed on a BOSS in a region you have already opened. Ordinary loot is untouched: chests, corpses and merchants still pay out what they would have. In a multiworld the same rule holds other players' progression, so an Elden Ring boss can be sitting on somebody else's way forward. This preset also pins every Region Lock in your OWN world, so the boss you have to kill is always one of yours. If you would rather your keys travelled to your partners, use Shared Fate below.",
+   "values": {
+    "enable_dlc": false,
+    "boss_progression": "bosses",
+    "progression_bias": 100
+   }
+  },
+  {
+   "id": "shared_fate",
+   "title": "Shared Fate",
+   "tagline": "Your keys are in their world, and theirs are on your bosses.",
+   "description": "Bosses hold the keys, the same as Bosses Hold the Keys -- but your Region Locks are NOT pinned at home. They go into the multiworld, so the partner who opens Liurnia for you is another player, and the boss you kill is holding their way forward. Made for a co-op multiworld and pointless in a solo seed, where there is nowhere for anything to travel to.",
+   "values": {
+    "enable_dlc": false,
+    "boss_progression": "bosses"
    }
   },
   {
