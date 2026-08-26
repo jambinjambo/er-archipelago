@@ -140,7 +140,7 @@ PRESETS = [
         # confine_foreign_progression is the OTHER half of what this preset means and is deliberately
         # NOT listed: it already defaults to 100, and validate_presets rejects any value equal to the
         # default (presets carry deviations only). So the description carries it instead.
-        "values": {"enable_dlc": False, "boss_progression": "bosses",
+        "values": {"enable_dlc": False, "progression_surface": ["Boss"],
                    "progression_bias": 100},
     },
     {
@@ -157,10 +157,18 @@ PRESETS = [
         # `auto` (each partner game gets its ~1/N share of the travellers), and the useful-item
         # share is a derived reservation with no knob at all (features/export_reservation). So the
         # travelling half of this preset IS the shipped default; what the preset actually adds is
-        # the boss surface. validate_presets rejects any value equal to a default, so listing the
-        # rest would fail the gate -- correctly, because it would be restating the defaults as
-        # though the preset were causing them.
-        "values": {"enable_dlc": False, "boss_progression": "bosses"},
+        # the boss surface -- `progression_surface: [Boss]`, which is every healthbar in play and
+        # nothing else. validate_presets rejects any value equal to a default, so listing the rest
+        # would fail the gate -- correctly, because it would be restating the defaults as though the
+        # preset were causing them.
+        #
+        # 🛑 NAMING `Boss` ALONE DROPS `SweepSlot` FROM THE SURFACE, and that is the trade this
+        # preset is making, not an oversight: a key then sits on the boss's OWN drop, which no
+        # dungeon sweep may ever grant (gen_data._SWEEP_NEVER_TAGS), instead of on one nominated
+        # member of its sweep. Measured 2026-08-25 over 5 seeds x 2 ER worlds at the shipped
+        # surface: 125 of 137 progression items (91%) sat on a check an armed sweep hands over.
+        # That is what a player picking this preset is turning off.
+        "values": {"enable_dlc": False, "progression_surface": ["Boss"]},
     },
     {
         "id": "dlc_only",

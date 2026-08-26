@@ -510,11 +510,8 @@ _OPTION_GROUPS = [
         "pool_builder_pct_armor", "pool_builder_pct_spells", "pool_builder_pct_talismans",
         "pool_builder_pct_ashes_of_war"]),
     ("Multiworld & Placement", [
-        # boss_progression sits directly before progression_surface because it OVERRIDES it: a player
-        # who reads the group top-down meets the plain-English lever before the class list it
-        # replaces, which is the order its docstring tells them to use the two in.
-        "death_link", "trap_link", "region_sync", "filler_foreign_pct", "boss_progression",
-        "progression_surface", "progression_bias",
+        "death_link", "trap_link", "region_sync", "filler_foreign_pct", "progression_surface",
+        "progression_bias",
         # cross_game_progression reads directly after progression_bias because it only has meaning
         # once that one has released something: bias decides HOW MANY Locks travel, this decides how
         # many of the travellers may leave Elden Ring entirely. Reversed, the second is unanswerable.
@@ -2356,14 +2353,6 @@ class GreenfieldEldenRingWorld(World):
             spoiler_handle.write(f"  (slot_data dump failed: {e!r})\n")
 
     def generate_output(self, output_directory: str) -> None:
-        # BOSS PROGRESSION CENSUS. Here and not in post_fill: Main.py runs post_fill at 203 and
-        # `balance_multiworld_progression` at 206, and balancing SWAPS placed items between arbitrary
-        # players' locations -- so a count taken in post_fill describes a seed nobody will play. This
-        # hook runs at 239, after it. (features/progression_surface.log_boss_census documents the
-        # earlier, worse version: it read 0/0 while 400 of 400 progression items were on bosses.)
-        from .features import progression_surface as _psc
-        _psc.log_boss_census(self)
-
         # Post-fill CHECK BREAKDOWN, printed to the generate log so a seed can be judged on
         # progression shape + filler locality at a glance (not just "it genned"): how each of this
         # slot's checks was filled -- own progression / own useful / own (local) filler / another

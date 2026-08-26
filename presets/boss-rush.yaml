@@ -9,7 +9,7 @@ game: Elden Ring
 Elden Ring:
   enable_dlc: false
   # ^ Enable DLC (default: True)
+  progression_surface: ["Boss"]
+  # ^ Progression Surface (default: ['Church', 'Fragment', 'KeyItem', 'MajorBoss', 'Revered', 'Seedtree', 'ShopSlot', 'SweepSlot'])
   progression_bias: 100
   # ^ Progression Bias (default: 0)
-  boss_progression: "bosses"
-  # ^ Boss Progression (default: off)
