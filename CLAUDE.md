@@ -32,14 +32,14 @@ wrong change for this project.
 greenfield/eldenring/        THE APWORLD (ships as eldenring.apworld)
   core.py            options, region graph, goal, item pool, slot_data assembly  (~1.7k lines)
   registry.py        the Feature base class + hook aggregation
-  features/*.py      52 self-registered feature modules — WHERE MOST WORK GOES
+  features/*.py      54 self-registered feature modules — WHERE MOST WORK GOES
   contract.py        slot_data declarations + validate_slot_data + APWORLD_VERSION
   region_spine.py    SPINE order, REGION_PARENT, compute_kept (pure, no AP import)
   coverage.py        gen-time gate: every emitted check is detectable + suppressed
   data.py, item_ids.py, item_tiers.py, location_tags.py, boss_*.py, shop_data.py,
   region_graces.py, region_open_flags.py, region_play_ids.py, missable_locations.py
                      ^^^ ALL GENERATED — never hand-edit (see below)
-  tests/             215 test files, run via tools/gf_test.py
+  tests/             223 test files, run via tools/gf_test.py
 greenfield/
   gen_data.py        THE generator for every module above (8.8k lines)
   region_groups.py   play_region bucket -> region spine (curated, hand-owned)
@@ -118,16 +118,22 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
   before shuffling, so a changed check NAME permutes the fill even though the AP
   ids are untouched. Upstream behaviour, not ours — but it means a name change is
   a seed-breaking change and belongs in a release window, not a patch.
-- **Synced to upstream `7bf77dd` on 2026-08-24** (APWORLD_VERSION 0.4.14). The
-  748-commit pull landed `features/export_reservation.py` (#918, reserves this
-  world's uniformity share of useful exports into non-ER worlds) and
+- **Synced to upstream `ebc3948a` on 2026-08-25** (APWORLD_VERSION **0.5.1**).
+  Two pulls got here: 748 commits to `7bf77dd` (0.4.14), then 43 more to 0.5.1.
+  Between them they landed `features/export_reservation.py` (#918, reserves this
+  world's uniformity share of useful exports into non-ER worlds),
   `cross_game_progression` (#703/#811/#927, routes progression to partner games
-  BEFORE the ER surfaces get a look). Both are ON by default and both own ground a
-  local option must not duplicate — check them before adding a multiworld lever.
-- **The client submodule is not checked out** (empty dir, gitlink
-  `bde5257`). No Rust source or `cargo` gate is available locally; anything you
-  claim about client behaviour must come from `greenfield/CONTRACT.md`, not from
-  reading client code that isn't here.
+  BEFORE the ER surfaces get a look), `shop_checks` (#994), `coop_difficulty`
+  (#993), the three ability-lock options (#980) and `region_sync` (#1005). All
+  own ground a local option must not duplicate — check them before adding a lever.
+- 🛑 **`dungeon_sweep` ALREADY MEANS "kill the boss, get the key."** Measured
+  2026-08-25 over 5 seeds x 2 ER worlds: **125 of 137 progression items (91%)**
+  sit on a check an armed sweep hands over, because `SweepSlot` is in
+  `contract.SURFACE_DEFAULT_CLASSES`. A local `boss_progression` option was built
+  and then RETIRED (`a7de6f2c`) for exactly this reason. Do not rebuild it.
+- **The client submodule IS checked out**, at the upstream pin `3967d512`, and
+  `contract_gen.rs` expects `0.5.1`. Rust source and the `cargo` gates are
+  available locally. (This entry said the opposite until 2026-08-25.)
 - Local Python is **3.13**; CI runs **3.12**. Version-sensitive failures are
   plausible and worth ruling out before chasing a logic bug.
 
