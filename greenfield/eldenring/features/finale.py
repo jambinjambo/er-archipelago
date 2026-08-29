@@ -53,6 +53,7 @@ import logging
 from BaseClasses import Region, Location
 
 from ..registry import Feature, register
+from .progressive import vanilla_substitutions
 from . import vanilla_placement as _vp
 from ..data import LOCATIONS, FINALE_REGION, FINALE_REQUIRES, FINALE_HOST_REGION
 from . import natural_progression as _np
@@ -233,10 +234,29 @@ class Finale(Feature):
             return []
         out = []
         excl = getattr(world, "gf_dlc_excluded", ())
+        # 🛑 THE FINALE IS A SECOND ITEM-SHUFFLE WALK AND MUST APPLY THE SAME SUBSTITUTIONS (2026-08-28).
+        #
+        # These ten-odd checks are NOT in LOCATIONS[HUB + kept], so `core.create_items`' walk never
+        # sees them and this loop is the only thing that turns them into pool items. It read
+        # LOCATION_ITEM raw, so every progressive ladder had a hole here exactly the width of the
+        # Ashen Capital: whatever vanilla put on a finale check entered the pool as itself, past the
+        # ladder that was supposed to pace it.
+        #
+        # It was live rather than theoretical -- the capital pays a `Somber Ancient Dragon Smithing
+        # Stone`, which is the TOP RUNG of the somber track, handed over in one pickup. It was also
+        # latent for the two SHIPPED ladders and only by luck: no finale check happens to pay a
+        # Golden Seed or a Miner's Bell Bearing today, so `progressive_flasks` (on by default) has
+        # been one data change away from the same leak since it shipped.
+        #
+        # Same order as core's walk -- DLC exclusion judges the BASE name, then substitution -- so
+        # the two agree about what a check pays.
+        subs = vanilla_substitutions(world) if world._shuffle_on() else {}
         for (_name, ap_id, _flag) in finale_entries():
             nm = LOCATION_ITEM.get(ap_id) if world._shuffle_on() else None
             if nm and excl and nm in excl:
                 nm = None
+            if nm and subs:
+                nm = subs.get(nm, nm)
             if nm and nm in world.item_name_to_id:
                 out.append(world.create_item(nm))
             else:
