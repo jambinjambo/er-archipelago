@@ -49,11 +49,17 @@ _PKG = "cov_gate_test_pkg"  # synthetic package so path-loaded modules can relat
 # 4932 -> 4931 (2026-08-07): the item-existence guard learned that FromSoft's cut-content marker
 # also appears as '[ERROR]<real name>', which retired f400081 (goods 8130, "[ERROR]Rya's
 # Necklace"). It was never a second necklace -- the real one is goods 8136 (f400300).
-BASELINE_TOTAL_LOCATIONS = 5048   # 5047 + 1 (2026-08-21, #940): the Four Belfries Imbued Sword Key
-                                  # (f1033477020) un-culled -- the "phantom fourth key" ruling was
-                                  # wrong (treasure_assets / msb_flag_region / item_grace_coords all
-                                  # place it); it is an ordinary Liurnia map_lot check, adopted by the
-                                  # Royal Revenant sweep (trigger 1034480800).
+BASELINE_TOTAL_LOCATIONS = 4928   # -1 dead Neutralizing Boluses award (#1111)
+                                  # 16001/16004 are starting/caster-kit data, not merchant checks.
+                                  # Their 36 stock flags leave the client shop table; 33 derived
+                                  # shop-only locations leave the pool, while three flags retain
+                                  # their independently placed world locations.
+                                  # PREVIOUS: 5048 - 100 (2026-08-24, #1013): Enia's shop is vanilla again.
+                                  # Her 100 stock flags left the pool (gen_data._ENIA_SHOP_FLAGS,
+                                  # ledgered NOT_RANDOMIZED as enia_vanilla): release-gated armor rows
+                                  # and hold-the-remembrance trades read sphere-1 in the spoiler while
+                                  # her menu is empty at start. Removals, not new locations -- the
+                                  # coverage question does not arise.
                                   # PREVIOUS: 5115 (#898). The full-MSB census places +9 more, then the worldless-singles cull removes 77 map-encoded ground-lot flags with no world reference in ANY corpus -- coords, census, scripted, #898 audited tiles, the flag-level EMEVD ruling -- under a zero-blind-map census (gen_data._WORLDLESS_SINGLES): 5115 + 9 - 77 = 5047
                                   # 4879 + 36 (unplaced common-event rows placed, 2026-08-04,
                                   # issue #249): rows filed `Global / Common-event (unplaced)` that
@@ -107,7 +113,13 @@ BASELINE_TOTAL_LOCATIONS = 5048   # 5047 + 1 (2026-08-21, #940): the Four Belfri
                                   # new location covered; detection/award/region/suppression stayed at
                                   # ZERO violations. Prior lineage: 4833 (synthetic-award-guard regen)
                                   # + 10 finale (Ashen Capital, 2026-07-14) + 7 gesture pickups = 4848.
-BASELINE_SHOP_CHECKS = 562   # 561 -> 562 (2026-08-07): f400030 (Festering Bloody Finger), an
+BASELINE_SHOP_CHECKS = 437   # +11 Patch 1.17 limited-stock merchant checks (#1096)
+                             # purchases and no longer reach the client shop rewrite table.
+                             # PREVIOUS: 562 - 100 (2026-08-24, #1013): Enia's shop is vanilla again -- her
+                             # 100 stock flags left the pool (gen_data._ENIA_SHOP_FLAGS). Every one of
+                             # them detected on the shop_stock_flag channel, so the shop count takes
+                             # the whole delta; no other channel moves.
+                             # PREVIOUS: 562 # 561 -> 562 (2026-08-07): f400030 (Festering Bloody Finger), an
                              # unplaced-global row placed by the lot-keyed de-dup, whose flag is a
                              # ShopLineupParam eventFlag_forStock -- so it detects on the SHOP
                              # channel, not as a map lot. Verified as that one row, not inferred
@@ -231,6 +243,16 @@ class CoverageGateStatic(unittest.TestCase, _BaselineAssertions):
         _, _, tripped = self.cov.report_coverage(printer=None, _static_table=(broken, se, si))
         self.assertGreater(len(tripped["suppression"]), len(clean["suppression"]),
                            "gate did NOT trip on a corrupted suppression table")
+
+    def test_shared_flag_reports_the_locations_own_lot_suppression(self):
+        """1.17 added an equipment lot beside f2048467030's goods lot. This location remains
+        bound to the goods sibling, so coverage must report its own blank rather than the other
+        sibling's zero; both rows are still emitted to the client suppression table."""
+        records, _ctx = self.cov.build_coverage()
+        rec = records[7773502]
+        self.assertEqual(rec.detect_flag, 2048467030)
+        self.assertEqual(rec.suppress_kind, "lot_blank_map")
+        self.assertIn("checkLotBlank", rec.provenance["suppress"])
 
     def test_tripwire_flag_with_no_awarding_lot_is_caught(self):
         """A check keyed on a flag NO ItemLotParam row awards (the phantom synthetic class: flag
@@ -432,7 +454,8 @@ if _HAVE_AP:
             # the live join's verdict or the two differ by exactly those 36 on a no-DLC config.
             s_records, s_ctx, s_byname = live_cov.report_coverage(
                 kept=ctx["kept"], finale=ctx["FINALE_REGION"] is not None, printer=None,
-                dlc_on=ctx.get("dlc_on"))
+                dlc_on=ctx.get("dlc_on"),
+                tarnished_pack_on=ctx.get("tarnished_pack_on"))
             self.assertEqual(sorted(records), sorted(s_records),
                              "live and static joins disagree on the emitted location set")
 

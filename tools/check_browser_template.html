@@ -169,7 +169,10 @@ function haystack(c){
   if(c._h) return c._h;
   return c._h = [c.n,c.r,c.f,c.id,c.g,c.t.join(' '),c.maps.join(' '),c.mapn.join(' '),
     c.desc,(c.lots||[]).map(l=>l.name+' '+l.lot).join(' '),
-    (c.shop||[]).map(s=>s.item).join(' ')].join(' ').toLowerCase();
+    (c.shop||[]).map(s=>s.item).join(' '),
+    // the sweep boss left c.n when the clause moved to its own row (#936); it stays SEARCHABLE,
+    // because "which checks does Fire Giant sweep" is exactly what the page is asked.
+    (c.sw||[]).join(' ')].join(' ').toLowerCase();
 }
 
 /* ---------- facets render ---------- */
@@ -279,7 +282,8 @@ function tileMates(c){
   return out;
 }
 function reportRow(c){
-  return `<dt>Region wrong?</dt><dd><a href="#" class="rep" data-id="${c.id}">report a misregion ↗</a></dd>`;
+  return `<dt>Something wrong?</dt><dd><a href="#" class="rep2" data-id="${c.id}">report a problem with this check ↗</a>`
+       + `<br><a href="#" class="rep" data-id="${c.id}">just the region is wrong ↗</a></dd>`;
 }
 function reportUrl(c){
   const mates=tileMates(c);
@@ -319,6 +323,68 @@ function reportUrl(c){
     +'&body='+encodeURIComponent(L.join('\n'));
 }
 
+/* ---------- REPORT A CHECK (the general case) -----------------------------------------
+   Same static-page trick as the misregion button above, one rung more general: the player's
+   check misbehaved and they want it looked at. The difference is the destination -- this one
+   opens the ISSUE FORM (.github/ISSUE_TEMPLATE/check-report.yml) rather than a blank issue, so
+   the questions triage always ends up asking (which build, what did the game actually do, the
+   yaml, the log) are ASKED UP FRONT instead of being chased in comments a week later.
+
+   🛑 Only `input` and `textarea` fields prefill from the URL, keyed on the field's `id` --
+   that is the whole of what GitHub documents (see "Creating an issue from a URL query"). The
+   `symptom` dropdown is therefore deliberately NOT prefilled: the browser does not know what
+   happened to you, and a dropdown that guessed would be a verdict this page has no business
+   claiming. The player picks it.
+
+   The evidence block is the same one the misregion form carries, because "which region is this
+   in and how was that decided" is the first question asked of a check that misbehaved, whatever
+   the symptom turned out to be. */
+const REPORT_TEMPLATE='check-report.yml';
+function checkFacts(c){
+  const L=[];
+  L.push('| field | value |','|---|---|');
+  L.push(`| name | ${c.full} |`);
+  L.push(`| AP id | ${c.id} |`);
+  L.push(`| event flag | ${c.f} |`);
+  L.push(`| assigned region | ${c.r} |`);
+  L.push(`| nearest grace | ${c.g||'unknown'} |`);
+  L.push(`| map tile(s) | ${(c.maps||[]).join(', ')||'none'} |`);
+  L.push(`| tags | ${(c.t||[]).join(', ')||'-'} |`);
+  if(c.how) L.push(`| region decided by | ${c.how} (check_region_triage) |`);
+  if(c.miss) L.push(`| missable | ${c.miss} |`);
+  const mates=tileMates(c);
+  if(mates.length){
+    L.push('');
+    for(const [t,rs] of mates) L.push(`- its tile \`${t}\` also holds checks in: ${rs.join(', ')}`);
+  }
+  L.push('', `Browser view: ${location.href}`, `Data stamp: \`${META.stamp}\``);
+  return L.join('\n');
+}
+function checkReportUrl(c){
+  return REPO+'/issues/new'
+    +'?template='+encodeURIComponent(REPORT_TEMPLATE)
+    +'&title='+encodeURIComponent(`check: ${c.n} [f${c.f}]`)
+    +'&check='+encodeURIComponent(`${c.full}`)
+    +'&facts='+encodeURIComponent(checkFacts(c));
+}
+
+// #936 -- eligibility, NOT a per-seed promise. The generator bakes ", also granted by <boss>"
+// into a sweep MEMBER's name, but that clause is a CORPUS fact: whether THIS seed's boss actually
+// hands the check over depends on the seed's `dungeon_sweep` rung and its progression-surface cut,
+// neither of which this page has (it is built once from the static corpus, with no seed at all).
+// So the browser states what it can know -- that a sweep lists the check -- and says out loud that
+// the seed decides. The in-game client, which DOES hold the seed truth in slot_data
+// `dungeonSweepFlags`, filters the clause instead of hedging it.
+function sweepRow(c){
+  if(!c.sw||!c.sw.length) return '';
+  const boss=c.sw[0], tile=c.sw[1];
+  const who = tile? `${esc(boss)} (${esc(tile)})` : esc(boss);
+  return `<dt>Sweep</dt><dd>eligible &mdash; ${who}<br>`
+       + `<span style="color:var(--dim)">a sweep in the corpus lists this check; whether a given `
+       + `seed grants it on that boss kill depends on its <code>dungeon_sweep</code> and `
+       + `<code>progression_surface</code> settings.</span></dd>`;
+}
+
 function showDetail(c){
   const d=document.getElementById('detail'); d.classList.remove('empty');
   const rows=(arr,fn)=>arr&&arr.length?`<div class="rows">${arr.map(fn).join('')}</div>`:'<div style="color:var(--dim)">none</div>';
@@ -334,6 +400,7 @@ function showDetail(c){
      ${c.miss?`<dt>Missable</dt><dd style="color:var(--red)">${esc(c.miss)}</dd>`:''}
      ${c.fl?`<dt>Flags</dt><dd>${c.fl.map(f=>`<span class="tag">${esc(f)}</span>`).join('')}</dd>`:''}
      ${c.desc?`<dt>Description</dt><dd>${esc(c.desc)}</dd>`:''}
+     ${sweepRow(c)}
    </dl></div>
    <div class="sec"><h3>Where</h3><dl class="kv">
      <dt>Nearest grace</dt><dd>${esc(c.g)||'<span style="color:var(--dim)">unknown</span>'}</dd>
@@ -622,6 +689,13 @@ document.querySelectorAll('thead th').forEach(th=>th.addEventListener('click',()
 }));
 /* caveat blocks are collapsed by default but ONE click away, never hidden */
 document.getElementById('detail').addEventListener('click',e=>{
+  const rep2=e.target.closest('.rep2');
+  if(rep2){
+    e.preventDefault();
+    const c=CHECKS.find(x=>String(x.id)===rep2.dataset.id);
+    if(c) window.open(checkReportUrl(c),'_blank','noopener');
+    return;
+  }
   const rep=e.target.closest('.rep');
   if(rep){
     e.preventDefault();

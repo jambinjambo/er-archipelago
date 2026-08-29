@@ -403,4 +403,4 @@ SPAWN_TRAP_KEYS = {
     'malenia': 2120,
 }
 
-_GEN_STAMP = {'inputs_hash': 'sha256:e39be82bff579e8f63099ac8d5a030941f6e724683e521e4b14f900701f0944f', 'module': 'spawn_trap_data.py', 'body_sha256': 'sha256:1979567ffba029e59176478d83fc163315c8b9a8fbfbe613fd49bcdea6cb40f1'}
+_GEN_STAMP = {'inputs_hash': 'sha256:6e786569526a11b77a7e69cb6725a437e5be2879d6b128012334be2e8f468d4d', 'module': 'spawn_trap_data.py', 'body_sha256': 'sha256:1979567ffba029e59176478d83fc163315c8b9a8fbfbe613fd49bcdea6cb40f1'}

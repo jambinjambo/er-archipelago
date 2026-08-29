@@ -3,60 +3,10 @@
 The narrative — what this project is and what v0.2 brings — lives in
 `RELEASE-NOTES-v0.2.md`. This file is the terse per-release delta.
 
-## v0.5.1 — 2026-08-24
+## Unreleased
 
-### What you need to update
-
-- **Client:** Required — use the v0.5.1 client with v0.5.1 seeds; the exact-version handshake
-  moves even though the slot-data shape does not.
-- **APWorld:** Host-only — the room host or generator must install v0.5.1; joining players only
-  need the matching client.
-- **YAML:** **No new YAML required. Existing YAMLs remain valid.**
-- **Existing seed/save:** Compatible — finish an active v0.5.0 seed with its matched v0.5.0
-  pair. No save migration; do not mix versions.
-- **Profile/assets:** No action.
-
-Window opened AT the v0.5.0 tag with zero commits past it, in the promotion change; nothing is
-carried over.
-
-`CONTRACT_HASH` remains `13db0b3a`, verified by loading `contract.py` after the bump. The
-slot-data shape is unchanged — `abilityUnlockItems` is still the newest key — but the
-exact-version handshake still moves to 0.5.1.
-
-Client half: clients#414. Its merge commit is pinned by the gitlink in this same change.
-
-`release/CHANNELS.tsv` promotes `stable` to v0.5.0 in this same change — the first stable
-promotion since v0.4.13, and the one the v0.5.0 window deliberately deferred until its tag.
-
-Entries arrive below as they merge (rule 14: the release notes are part of the change, not part of the release).
-
-### Added
-
-- **Second-opinion region audit (`tools/audit_region_second_opinion.py`).** Developer tool, no player-facing change. The 305 checks whose names still say `(region unconfirmed)` got their region from a nearest-neighbour hop that cannot fail, so nothing in this repo can tell us which of them are wrong. The tool asks an independent corpus -- Eldenpedia (eldenring.wiki.gg, CC BY-SA 4.0), with the Fandom Elden Ring Wiki (CC BY-SA 3.0) as fallback -- where each check's vanilla item is found, maps the answer into our region vocabulary through a hand-written table, and prints AGREE / DISAGREE / AMBIGUOUS / NO-DATA per check. ERDB (MIT) was evaluated and is not used as a location source: its datamined params carry no placement field. Fextralife is deliberately not consulted. First run over all 305: 51 AGREE, 16 DISAGREE, 3 AMBIGUOUS, 26 NO-DATA, 209 AMBIGUOUS-GENERIC (an item with many vanilla copies cannot name one placement, so the tool refuses those without a request). Output is `greenfield/check_region_second_opinion.tsv` and `greenfield/CHECK-REGION-SECOND-OPINION.md` -- verdicts, region names and page titles only; no wiki prose is committed and the response cache is off-repo. It is a CANDIDATE list for hand-adjudication, never a cull list: NO-DATA means "not readable there", not "the check is fine".
-- **Region second-opinion worksheet page (`er-archipelago-region-second-opinion.html`).** Developer tool, no player-facing change. The audit above produced 305 rows and no ruling; this is the offline page for making the rulings. Same self-contained shape as the check browser -- one file, no server, no CDN, nothing fetched at view time -- with the rows grouped DISAGREE (12 units) -> AMBIGUOUS (3) -> NO-DATA (23) -> AGREE (42), and the 209 generic-name rows collapsed and unrendered until asked for, because a reader who scrolls into 209 sourceless rows starts adjudicating noise. Each row carries our region, the wiki's, the item, the tile, how the region was decided (`check_region_triage.tsv`), and a LINK to the source page; per row there are four rulings -- ours right / wiki right / needs MSB look / generic collision -- plus a free-text note, held client-side only and exported as a paste-ready `flag / ap_ids / audit_verdict / adjudication / note` TSV into both the clipboard and a textarea (a `file://` page cannot hand over a download). 🛑 The adjudication unit is the FLAG, not the tsv row: eight flags carry several ap ids (the Scaled set is one flag with four) and `region_of` decides per flag, so they merge into one row listing every id it speaks for. Adjacent m60 tiles are badged as clusters -- a HINT that a run of checks shared one nearest-neighbour hop, not evidence that the hop was wrong. Built by `tools/build_region_second_opinion_page.py`, wired into `tools/regen_all.py`, and gated by `test_gf_region_second_opinion_page.py` (24 tests: totality against the tsv, the flag-is-the-unit invariant, NO-DATA-is-not-AGREE, the export contract, no external request, byte-identical regen).
-- **An MSB nearest-grace VOTE beside the wiki verdict, and the runbook for the exact answer.** Developer tool, no player-facing change. The second-opinion audit could only speak about 96 of the 305 unconfirmed checks -- its join key is the ITEM NAME, and 209 rows are items like `Smithing Stone [1]` that one wiki page covers everywhere in the game. `tools/msb_region_vote.py` asks a different question of data we already own: fold the check's committed MSB coordinates into the overworld frame (through `tools/overworld_fold.py`, the single shared fold) and vote the region of the NEAREST region-attributed Site of Grace, out of 338 graces attributed via `grace_region_map.tsv` + `grace_ground.tsv` + `REGION_PLAY_IDS`. It votes on 260 of the 305: 241 back our region, 19 do not. `check_region_second_opinion.tsv` gains five columns (`msb_vote_region`, `vote_distance_m`, `vote_unanimous`, `vote_anchor_grace`, `vote_note`) and the worksheet page gains a colour-coded vote column -- backs us / backs the wiki / backs NEITHER / no vote -- with a filter for each and the anchor grace and distance always beside the region. 🛑 IT IS 91.4% ACCURATE AND IT IS NOT INDEPENDENT OF US: `--calibrate` re-derives that figure over 2607 control checks, and it is the same nearest-neighbour shape as the hop that gave these checks their regions, so a vote that AGREES corroborates nothing. That sentence is in the tsv header and across the top of the page, because a number that travels without its caveat becomes an authority. Rows whose anchoring grace got its OWN region from a tile-default row are badged `SUSPECT-ANCHOR`: 17 of the 19 votes-against ride ONE such grace (73211, Yelough Anix Tunnel) and flip Mountaintops rows to Consecrated Snowfield as a block -- a cluster to explain, not 17 defects. `vote_note` also carries `NO-COORDS` (45 rows), `CROSS-TILE-MSB` (3 Bestial Sanctum checks labelled m60_51_41 whose coords are authored in m60_51_43), `COARSE-LOD` and `MULTI-PLACEMENT`. The decisive instrument is not this: `docs/PLAYAREA-ITEM-SCAN.md` is the runbook for pointing `datamine_grace_ground.py`'s Box/Cylinder/Sphere/Composite point-in-volume machinery at item coordinates instead of the 421 graces, which reads the exact runtime `PlayRegionID` the client's kick-watch reads. It needs the extracted MSB corpus, so it runs on Alaric's box; when it has run, its answers REPLACE the votes (`vote_note=PLAYAREA-CONFIRMED`) rather than averaging with them. Gated by 41 tests in `test_gf_region_second_opinion.py` (the vote geometry on synthetic fixtures -- nearer-grace-wins AND its mirror, the LOD1/2 fold pinned against `overworld_fold`, every note, and the calibration re-derived rather than remembered) and 34 in `test_gf_region_second_opinion_page.py` (vote column, side classification, SUSPECT-ANCHOR badge, the disagrees filter, no vote without its distance and anchor).
-
-- **The Chapel of Anticipation return is Liurnia now, not Limgrave.** The Grafted Scion's drops --
-  Ornamental Straight Sword and Golden Beast Crest Shield -- sat under Limgrave on the strength of
-  the prologue fight, which the game expects you to lose. The chapel floor has no Site of Grace of
-  its own, so nothing the Limgrave Lock lights puts you back on it; the route that does is the Four
-  Belfries -> Chapel warp, and the Belfries are Liurnia's (their Imbued Sword Key chest became a
-  Liurnia check in v0.4.11, #940). Both checks now read `Liurnia ::`, and stay barred from hosting
-  progression as before. Nothing else moved: the Cave of Knowledge tutorial pickups and the
-  Fringefolk Hero's Grave rewards below the Stranded Graveyard -- including the Erdtree Greatbow,
-  which the chariot pays out, not a chapel chest -- are all walkable from Limgrave and stay there.
-  Reported by 255. (#1023)
-### Added
-
-- **Region Sync (#1005).** New `region_sync` toggle (default off) for seamless co-op: the party
-  shares one physical world, so when any Elden Ring player with it on unlocks a region, every other
-  opted-in ER slot's door opens too — the region-open flag is set and its graces light, the same
-  write a locally received Lock makes. ACCESS ONLY: nobody is granted the region-Lock ITEM,
-  fill/logic/goal are untouched, and generation is identical on or off. Rides the options echo
-  (OPTIONS_SUBKEYS, so `CONTRACT_HASH` does not move); a seed with it ON emits
-  `requiresClientFeatures ["region_sync"]` so an older client refuses the seed instead of leaving
-  its player region-kicked out from under the party. Client half clients#417; the gitlink moves to
-  its merge (`3967d512`).
+🛑 Not in a cut release yet. These entries re-roll every seed, so they need their own
+release window (and a client pin check) before they ship -- see SPEC-publishing-pipeline.md.
 
 - **Graded Progression.** New `graded_progression` toggle (default off) that paces YOUR power to
   your progress through the multiworld. Off is byte-identical to today. On, smithing stones become
@@ -147,6 +97,369 @@ Entries arrive below as they merge (rule 14: the release notes are part of the c
   No new `ContractKey` — the ladders ride the existing `progressiveGrants`, so `CONTRACT_HASH` does
   not move and no client release is paired with this. `tools/analyze_upgrade_curve.py` returns
   (it went out with `stone_ramp`) with a `--selftest` this time.
+
+## v0.5.3 — 2026-08-28
+
+### What you need to update
+
+- **Client:** Required — development builds and seeds use the matching v0.5.3 pair.
+- **APWorld:** Host-only — the room host or generator must install the matching APWorld.
+- **YAML:** **No new YAML required. Existing YAMLs remain valid.**
+- **Existing seed/save:** Compatible — finish an active v0.5.2 seed with its matched v0.5.2
+  pair. No save migration; do not mix versions.
+- **Profile/assets:** No action.
+
+Window opened at the v0.5.2 tag. `CONTRACT_HASH` remains `13db0b3a`; the slot-data shape is
+unchanged, but the exact-version handshake moves to 0.5.3. Client half: clients#469.
+
+Entries arrive below as they merge (rule 14: the release notes are part of the change, not part
+of the release).
+
+- **The me3 save-separation docs now explain the initial copy.** When
+  `AP_me3.sl2` does not exist, me3 creates it by copying `ER0000.sl2`, so seeing
+  vanilla character names in the AP menu is expected; subsequent saves are
+  separate. The guides now give a direct verification, warn against loading a
+  copied vanilla character while connected, and make clear that the shipped
+  profile does not require the Alt Saves DLL.
+- **The #1085 questline-DAG regen now replaces its TSV atomically on Windows (#1110).** The
+  generator no longer opens and truncates the existing destination directly, avoiding the observed
+  `OSError: [Errno 22] Invalid argument` and ensuring a failed write cannot leave a partial table.
+- **The website update verdict is now reviewed and CI-gated.** `release/latest.json` lives in the
+  repo as a generated projection of `CHANNELS.tsv` and `CONTRACT-VERSIONS.tsv`. The deploy installs
+  those exact bytes only after verifying their stable version, contract hash, and release URL, so a
+  stale projection fails closed instead of being silently composed on the host.
+- **Tarnished Pack equipment can now enter the randomized pool (#1096).** A new default-off
+  ownership toggle admits the eight verified player weapons/shields and all 18 pieces from the four
+  new armor families. Each starts as honorary S tier in the pool builder. The two NPC-only weapon
+  bases and three Spectral Steed unlock goods remain excluded; this slice adds items, not locations.
+- **Tarnished Pack merchants now contribute 11 checks when that ownership toggle is enabled
+  (#1096).** The verified limited-stock purchases for the Hefty Scimitar, Steel set, Silver Grooved
+  Shield and set, and Reverse-Bladed Sword join the seed alongside the pack gear. They remain absent
+  by default, and are deliberately separate from the Shadow of the Erdtree ownership gate.
+- **Three Tarnished Pack corpse pickups now join enabled seeds (#1096).** Idus Sword near Liurnia
+  Lake Shore, Ritual Thrusting Shield near the Isolated Merchant's Shack, and Reed Great Katana near
+  Fort Faroth are backed by their live 1.17 lot, asset, map, and position joins. Existing merchant
+  check IDs remain unchanged; these checks append to the optional Tarnished Pack suffix.
+- **The unobtainable Stormveil Neutralizing Boluses check is removed (#1111).** The complete ESD
+  corpus confirms its only award branch requires flag 10009335, while the combined ESD, EMEVD, and
+  parameter inputs contain no setter or default for that flag. The vanilla lot remains untouched;
+  it is now explicitly ledgered as an unused ESD award instead of entering the randomized pool.
+
+## v0.5.2 — 2026-08-27
+
+### What you need to update
+
+- **Client:** Required — use the v0.5.2 client with v0.5.2 seeds; the exact-version handshake
+  moves even though the slot-data shape does not.
+- **APWorld:** Host-only — the room host or generator must install v0.5.2; joining players only
+  need the matching client.
+- **YAML:** **No new YAML required. Existing YAMLs remain valid.**
+- **Existing seed/save:** Compatible — finish an active v0.5.1 seed with its matched v0.5.1
+  pair. No save migration; do not mix versions.
+- **Profile/assets:** No action.
+
+Window opened AT the v0.5.1 tag with zero commits past it, in the promotion change; nothing is
+carried over.
+
+`CONTRACT_HASH` remains `13db0b3a`, verified by loading `contract.py` after the bump. The
+slot-data shape is unchanged — `abilityUnlockItems` is still the newest key — but the
+exact-version handshake still moves to 0.5.2.
+
+Client half: clients#459, merged as `0f359e19`. Its merge commit is pinned by the gitlink in this same change.
+
+`release/CHANNELS.tsv` promotes `stable` to v0.5.1 in this same change, at its tag.
+
+Entries arrive below as they merge (rule 14: the release notes are part of the change, not part of the release).
+
+- **Yura reward check f400163 is now labelled as Nagakiba with Piercing Fang (#1082).** Its category-6 custom-weapon lot was previously overridden by the colliding goods id for Tibia Summons; the location now names the actual weapon while preserving Nagakiba as the shuffled catalog item.
+
+- **Leyndell Golden Seed descriptions now identify the correct checks (#972).** The sapling pickup near East Capital Rampart and the Ulcerated Tree Spirit death award had each others descriptions; the two labels are now swapped back without changing their AP ids or rewards.
+
+- 🛑 **82% of location names change wording: a sweep clause now states ELIGIBILITY, never a grant (#936).** 4,063 of the 4,948 shipped location names carried a baked `, also granted by BOSS (tile)` clause; all 4,063 now read `, may be sweep-granted by BOSS (tile)`. **No AP id moves and no location is added or removed** -- the regen diff is 4,063 name strings and the generation stamp, with the 4,948 `(ap id, flag)` pairs byte-identical, `gen_contract` 3/3 unchanged (`CONTRACT_HASH` still `13db0b3a`) and `gen_region_locks` "up to date" at the pinned gitlink. **Why:** a location name rides the STATIC AP datapackage, minted once for the whole corpus, so it cannot see a seed. What a seed actually pays out is the `dungeon_sweep` rung narrowed by the progression-surface cut -- and for a `dungeon_sweep: none` seed that is *no* sweep at all, which made every one of those 4,063 clauses false. Three players read the promise and reported it: Haraldwyrm, 2026-08-20, *"some items say they are granted as sweep rewards when they are not, like golden seeds and crystal tears"*; then colombius, 2026-08-27, on `Mountaintops of the Giants :: Golden Seed - near Foot of the Forge, by two snow trolls, also granted by Fire Giant (m60_52_52) [f1052537800]` -- ap 7773183, a `Seedtree`, which his seed's surface cut had correctly taken back out of the Fire Giant sweep. Generation was right every time; the **name** was the liar. Alaric's ruling, 2026-08-27: *"when we are leaving them off sweeps, we shouldn't say they're granted by the sweep."* Eligibility is the fact the corpus actually knows, so the new wording is true in every seed, and #670's answer to *"so idk what boss to kill?"* survives where it can be checked: a reader holding the seed -- the F6 tracker, via slot_data `dungeonSweepFlags` -- still narrows the clause to a definite grant or strips it (clients#348, shipped v0.5.0), and our check browser, which has no seed at all, renders it as eligibility (#1083). What changed here is the half we could not otherwise reach: the spoiler log, server `!hint`, text clients and third-party trackers all resolve names from that static datapackage and will now read an honest one. `desc_sources.sweep_clause` is the single writer and `SWEEP_CLAUSE_OPENER` beside it is the single opener every reader cuts on, so this was one edit plus a regen. 🛑 The clause keeps its SHAPE -- a `", "`-opened tail whose only parenthesis is the tile, sitting last before `[fNNNN]` -- because every reader strips it back off by that shape, and folding boss and tile into one parenthesis would NEST for a boss whose own name has parens (`Night's Cavalry (Glaive)`).
+
+- **Client gitlink -> `d4c549b` (clients#460 + #461).** #460 is this rename's client half: the
+  tracker's sweep-clause stripper reads BOTH the old and new wording, so v0.5.1 seeds keep
+  working. #461 is the Tarnished client: Elden Ring 2.7.0.0 AND the Japanese 2.7.0.1 supported
+  on upstream's real address tables (fromsoftware-rs `0b44ede3` + our fork re-adding the
+  2.6.2 arms upstream dropped) -- all four game versions live in one build. The v0.5.1 client's
+  derived candidate table matched upstream's real one 93/93 and is retired.
+  - 🛑 **Compat, the same shape as the Enia id shift:** a v0.5.1-and-earlier seed's names are frozen in the server's datapackage and are never reworded, so **spoiler logs, hints and trackers from seeds generated before v0.5.2 keep the old "also granted by" wording** -- as do any notes, screenshots or issue reports quoting them. Nothing breaks: the v0.5.2 client recognises **both** openers (clients#460) and filters either against seed truth, so an older seed played with the newer client is fixed exactly as it was before. Only third-party tooling that string-matches the old clause needs the new one, and matching `may be sweep-granted by` alongside it is the whole change.
+
+## v0.5.1 — 2026-08-24
+
+### What you need to update
+
+- **Client:** Required — use the v0.5.1 client with v0.5.1 seeds; the exact-version handshake
+  moves even though the slot-data shape does not.
+- **APWorld:** Host-only — the room host or generator must install v0.5.1; joining players only
+  need the matching client.
+- **YAML:** **No new YAML required. Existing YAMLs remain valid.**
+- **Existing seed/save:** Compatible — finish an active v0.5.0 seed with its matched v0.5.0
+  pair. No save migration; do not mix versions.
+- **Profile/assets:** No action.
+- 🛑 **AP ids moved.** Enia's 100 shop checks left the pool (#1013), so `locations` goes
+  5048 -> 4948 and every id after hers shifts down by 100. A v0.5.0 spoiler log or external
+  tracker will name the wrong check; an in-flight seed is unaffected on its matched v0.5.0 pair.
+
+Window opened AT the v0.5.0 tag with zero commits past it, in the promotion change; nothing is
+carried over.
+
+`CONTRACT_HASH` remains `13db0b3a`, verified by loading `contract.py` after the bump. The
+slot-data shape is unchanged — `abilityUnlockItems` is still the newest key — but the
+exact-version handshake still moves to 0.5.1.
+
+Client half: clients#414. Its merge commit is pinned by the gitlink in this same change.
+
+`release/CHANNELS.tsv` promotes `stable` to v0.5.0 in this same change — the first stable
+promotion since v0.4.13, and the one the v0.5.0 window deliberately deferred until its tag.
+
+Entries arrive below as they merge (rule 14: the release notes are part of the change, not part of the release).
+
+### Added
+
+- **Report a check from the check browser, and land on an issue form that already knows which check it is.** Asked for by **Alaric** (2026-08-27). Every check's detail pane now offers *report a problem with this check* beside the existing *just the region is wrong* link. It opens `.github/ISSUE_TEMPLATE/check-report.yml` with the check's identity and the browser's evidence already filled in: name, AP id, event flag, assigned region, nearest grace, map tile(s), tags, how the region was decided, and the other regions sharing that tile. The player supplies the half only they have — what actually happened (never fired / gave the vanilla item / gave vanilla *and* the Archipelago item / could not reach it / wrong region / something else), the F6 build banner, the yaml, and the log. 🛑 **No backend and no new request.** A static page cannot POST; the link is a plain `<a href>` navigation to `github.com/.../issues/new?template=…&title=…&check=…&facts=…`, so the page still fetches nothing at load and works from a file, from peliarch and offline alike. Prefill keys on the field `id`, and **only `input` and `textarea` fields prefill from a URL** — which is why `symptom` is a dropdown the player picks and not a guess the page makes; the browser does not know what happened to you, and a page that guessed would be claiming a verdict it has no business claiming. Gated by `ReportAProblemLink` in `test_gf_check_browser.py`: the link is in the template *and* in the shipped page, the page still contains no `fetch`/`XMLHttpRequest`/`WebSocket`, and the URL is evaluated **under node from the shipped page's own builder** — not a python rewrite of it, which would only agree with itself — then parsed with `urllib.parse` and checked round-trip over the first row, the last row and 60 rows whose names carry `&`, `#`, `+`, `%`, quotes, commas or an en-dash. Every prefilled parameter is asserted to name a real text field in the form, because GitHub ignores an unknown key silently and the form would simply open empty.
+
+- **The front page said 4,931 checks. The world defines 4,948, and had since v0.5.1.** Enia's 100 shop checks left the pool in #1013 (`locations` 5048 -> 4948) and `wizard/landing.html` — a hand-written page with no build step, deployed straight from main by `deploy_wizard.sh --site` — kept its old number through that window and every regen since. Nothing anywhere could notice, which is the actual defect. Both occurrences are now marked `data-derived="checks-catalogued"` and gated by `LandingNumbersAreCurrent` in `test_gf_publish_channels.py`, a `generators` suite: every marked number must equal the count the world defines, **two independent derivations of that count must agree** (`wizard/region-census.json`'s per-region sum and the shipped check browser's payload length, built by different tools from the same data — if they ever disagree the page's number is unanswerable and red is the right answer), and a catalogued-check count written into the prose *without* the marker fails too, since that is exactly how it drifted the first time. The page stays static: this is a marker plus a gate, not a build step, because being on the `--site` fast path is the whole point of that file.
+
+- **`spawn_traps` takes enemy NAMES now, not only model ids.** Asked for by **SwiftyTaco** on
+  Discord (2026-08-26) — *"Am I supposed to put in ids, or the name of the enemy?"* — after writing
+  character model ids into `traps`, the option next to it, which takes words. Both halves of that
+  confusion are answered. `spawn_traps: [Basilisk, Runebear]` now means exactly what
+  `spawn_traps: ["4150", "4630"]` means, case and accents ignored (`Merchant Kale` finds
+  `Merchant Kalé`), and a model id written into `traps` no longer gets the stock
+  `Found unexpected key 4150 … Allowed keys: frozenset({…})` — it gets a sentence saying ids go in
+  `spawn_traps`, which takes ids *and* names. A misspelled name is still a generation-time error,
+  never a silent skip, but the error names its nearest matches: `'Basilsk' — did you mean
+  Basilisk?`. 🛑 **35 of the 390 spawnable models have a name, and the other 355 cannot get one
+  here.** Elden Ring never writes an enemy's name on screen: outside `NpcName.fmg.xml` — reached
+  through `NpcParam.nameId`, set on 31 of these models — there is no name in the game data to use,
+  and the `Name` column of both `NpcParam` and `AtkParam_Npc` is empty in all 7039 / 12855 rows. The
+  wiki names everyone thinks of are not the game's, and this project does not invent data, so the
+  rest stay reachable by id exactly as before. The four extra names are ones already published here
+  (`Runebear`, `Basilisk`, `Malenia (Phase 1)`, `Aging Untouchable`). The table is
+  `greenfield/eldenring/enemy_names.py`, datamined by `tools/datamine_enemy_names.py --check`; a
+  name two models share (Latenna, Smithing Master Hewg, Rennala — one NPC, two bodies) resolves to
+  the lowest model id, recorded in the table itself. **No client change and no contract change:**
+  names are resolved to ids at generation, the minted item name is byte-identical whichever
+  spelling you wrote, and `CONTRACT_HASH` stays `13db0b3a` (pinned by a test). The wizard's
+  free-text box takes names too — it splits on commas and newlines rather than on every non-word
+  character, so a name with spaces survives being typed — and `release/EldenRing.yaml`, the wizard
+  metadata and `wizard.html` are regenerated. (#1063)
+
+- **SPEC-map-for-goblins.md.** Integration spec for the Map For Goblins DLL Edition v2.1.2
+  (bobler's link): phase A ships it as an opt-in companion native -- its `live_loot_flags`
+  mode already hides markers on our check flags and `anonymous_loot` gives a spoiler-free
+  check map -- gated on one Windows acceptance session; phase C (native map icons for the
+  non-lot corpus + tracker coloring) stays the roadmap. Supersedes the K3 recon, which
+  analyzed the 2024 file-based edition.
+
+- **Client gitlink -> `3e62e09` (clients#419-#434).** Rode in with the regenerated
+  `grace_ground.tsv` (`b131d034`). All Bloodborne-client work (native attach/reconnect, grant
+  observation, backend enum) plus the console/`--log-file` tee (clients#426); no Elden Ring
+  gameplay change. This entry pays the bump's rule-14 note after the fact -- the commit itself
+  landed without one and redded main.
+
+- **The PlayArea scan now RULES the region audit, and the worksheet says which rows it ruled.** Developer tool, no player-facing change; no check's region moves in this change. `greenfield/item_play_regions.tsv` (5,295 placement rows over 4,086 flags) landed on main; step 5 of `docs/PLAYAREA-ITEM-SCAN.md` is now wired. `tools/msb_region_vote.py` prefers it: where a flag has an EXACT answer the nearest-grace vote is REPLACED (`vote_note=PLAYAREA-CONFIRMED`, no anchor, no distance -- a ruling has no hop to disbelieve), and where it does not, the heuristic stands untouched with its existing notes. 🛑 **EXACT means `volume:`/`interior-vol:`/`seam:`/`interior-seam:` and nothing else.** `tile-default`/`interior-map` are the SAME tile-wide guess the vote already is -- letting one confirm would relabel the guess as geometry and the row would stop being adjudicated, because a fallback agreeing with a fallback cannot fail; `none` is not evidence about the region at all. 746 flags earn a ruling repo-wide, 17 of them inside the 305-row audit set. The audit's settled/manual split moves to **230 heuristic-agree + 16 ruled-agree + 1 ruled-DISAGREE + 21 heuristic-disagree + 37 not votable**; `cast` rises 260 -> 268 because a ruling is keyed by FLAG and needs no coordinate row of its own. The worksheet page renders a ruling in its own class (`vote-ruled`, badged `RULING:`) and the header calibration caveat now says in as many words that it DOES NOT APPLY to those rows. The calibration itself was re-measured, not edited: **92.9% on a 2,169-check control set**, with the 518 ruled rows EXCLUDED from the control population rather than flattering the number. Two operational repairs ride along, both of which had already destroyed data once in this session: `audit_region_second_opinion.py --revote` refreshes ONLY the vote columns of the committed report (plain `--offline` on a box with no wiki cache silently rewrites `verdict`/`external_regions` as NO-DATA, throwing away a rate-limited crawl), and `--revote` re-reads `our_region` from `check_region_triage.tsv` instead of carrying the crawl's copy, because data.py moves under this file and a fresh vote compared against a stale region invents disagreements and hides real ones. Gated by 47 tests in `test_gf_region_second_opinion.py` (exact-beats-heuristic AND its mirror, a synthetic scan table pinning that every fallback source, every unowned bucket and every two-region answer is REFUSED, a ruling standing with no coords row, the live table's rulings all traced to exact sources, and the re-measured counts) and 35 in `test_gf_region_second_opinion_page.py` (the ruling class exists, is exempt from the caveat, has no anchor, and is not an unfired guard).
+
+  🛑 **What the scan did NOT settle, which is the finding the runbook's step 4 asked for.** Step 4 predicted the exact answer would disagree with the vote on roughly one row in ten and named three clusters it would settle. It settles almost none of them: of the 305 audit flags, **17 got an exact answer, 10 answered from a tile default, 241 answered `none`, and 37 have no scan row at all.** All **19** Yelough Anix Tunnel rows (`SUSPECT-ANCHOR`, the Mountaintops/Consecrated Snowfield block) answer `none` -- no volume, no seam, and no `PlayRegionParam` default for their tiles -- so the scan settles them in NEITHER direction. So do both Weeping rows anchored on 76113 Seaside Ruins (`1042347000`, `1042347030`), and two of the three Bestial Sanctum `CROSS-TILE-MSB` rows (the third, `1051417030`, answers `tile-default`, which does not confirm). Absence of an answer is not evidence about the region, and those rows stay on the heuristic and stay unadjudicated. The scan is decisive where it is decisive: 679 checks repo-wide carry an exact answer and 114 of those disagree with the region data.py gives them today -- but a large share of the disagreements are NPC-relocation artifacts (Patches/Thiollier/Moore/Bernahl shop rows whose coordinate is where the NPC ENDED UP, not where the check is), so that list is a candidate queue for `region_overrides.tsv`, not a bulk move. #1046's 35 `Rauh Base ::` rows are the worked example: only 5 have an exact answer -- `2045467050` -> 69410 and `2045477020` -> 69400 (both Ancient Ruins, confirming 255's report), `2046457000` -> 68100 (Gravesite), and two confirming Rauh Base -- with the other 86 Rauh rows split 33 tile-default / 28 `none` / 25 with no scan row.
+
+- **The PlayArea calibration gate and `grace_ground.tsv` now read the grace population out of ONE generator.** Developer tool, no player-facing change, no committed output moves. `datamine_item_play_regions.py --graces` is the gate that decides whether the item scan has earned an opinion about check regions: it re-derives all 421 warp graces and diffs them against the committed `greenfield/grace_ground.tsv`. #1050 made the two tools share ONE ladder (`derive_ground`) so they judge a point the same way; they were still two separate readers of `BonfireWarpParam`, and the copies had drifted. Both derive from the grace's BWP **spawn position** (`posX/posY/posZ`) -- the point the player materialises at, and therefore the point the client's kick-watch evaluates `play_region` at on warp-in, which is the whole reason this table is trustworthy -- but a row whose spawn position does not PARSE was emitted with a map-default fallback by `datamine_grace_ground` and silently `continue`d past by the gate. A grace the gate never compares is not a grace the gate blessed, and the gate's population being quietly smaller than the table's is exactly the "a partial census read as complete" failure this file's refusals exist for. `datamine_grace_ground.grace_rows()` is now the single generator of that population -- flag, map id, authored tile, spawn-derived ids, source, with the `MEASURED_GROUND` in-game override applied once inside it -- and the gate's own `grace_rows` is a projection of it, so the two tools can no more read different POINTS than they can run different ladders. 🛑 The distinction the runbook now states in one line: the spawn position is **not** the grace ASSET coordinate that `greenfield/item_grace_coords.tsv` carries under the same flag. The two are metres apart at some graces, and a gate that judged one against the other would report `seam:`/`none` deltas that are artifacts of comparing two different points rather than findings about the corpus -- the failure mode a fixture grace now pins against permanently. This is a PURE REFACTOR of `datamine_grace_ground`'s own output, asserted byte-for-byte against the pre-refactor emitted table over the synthetic MSB corpus, so the runbook's step-3 regen expectations (the three seam upgrades, the two source upgrades, the TAB-in-a-name repair) are unchanged. Gated by four new tests in `test_gf_item_play_regions.py`: the unparseable-spawn grace must be COMPARED (RED on the previous gate, which skipped it), the two `grace_rows` must be the same rows (RED on the previous pair), the emitted table must be byte-identical to the pre-refactor golden, and a fixture grace whose asset coordinate and spawn position straddle `SEAM_SLACK` must be answered from the SPAWN point -- alongside the existing one-function-object assertion for the ladder.
+
+- **PlayArea scan volume floor measured, not guessed (box run, 255's region reports).** The item
+  play-region scan's `VOL_FLOOR = 1000` FATAL'd Alaric's comprehensive witchy export (1,346 msb-dcx
+  dirs) because the true overworld PlayArea count is 497 -- volumes exist at play-region boundaries,
+  not per tile. Floor re-pinned at 400 against the measurement; the `--graces` calibration diff
+  remains the decisive partial-export catch. Runbook updated to the measured expectation.
+
+- **`full_area_sweeps` -- an opt-in "the boss hands you the WHOLE area" (#1033).** Asked for by siffrin ("does killing a boss give me every item in the area? i only have 1 region and i already killed loreta and malenia and im not sure what else to check") and previously by bobler. Off by default, and off is byte-identical to v0.5.0: a sweep still pays out the area's ordinary loot and still leaves the classes on your `progression_surface` where they lie, because that is where the seed hid its Locks. Turn it on and the per-seed surface cut stops running: **+113 member links at the default surface (4101 -> 4214)** -- Scadutree Fragments 40, Golden Seeds 38, Revered Spirit Ashes 22, Sacred Tears 13 -- up to +215 for a seed that puts all six of the collectathon/rarity classes on its surface, and exactly zero for a seed with an empty surface (an empty surface claims nothing, so there is nothing to restore). The trigger set does not move: 211 groups before and after. It widens MEMBERSHIP only -- `dungeon_sweep` still decides which bosses sweep, and the #445 arena-reachability drop, the region-consistency invariant and the HUB quarantine are untouched, because a check swept into the wrong region is permanently unobtainable and no option may override that. It also does NOT lift the permanent floor: another boss's reward, remembrance or Great Rune, quest/gate key items and merchant stock are cut when the sweep is BUILT and no yaml restores them. A seed with it on can be handed its own region Locks (and, at the default `confine_foreign_progression`, another player's items) on a boss kill -- that is the feature, and it cannot strand anyone, because a sweep member's access rule is its own region and the trigger boss stands in a region the seed kept, so the sweep only makes a reachable check arrive earlier. Missable checks are unaffected in either direction: they have never been filtered from sweeps (170 of the 289 are members today), so a sweep already rescues most of them. **No client change and no contract change** -- membership rides in per-seed slot data (`dungeonSweepFlags`), so a widened list is just a bigger list on the wire and an older client follows it without knowing the option exists; `CONTRACT_HASH` does not move and no `requiresClientFeatures` is emitted. For the record, what stays UNSWEPT after the option is on is mostly not sweepable at all: on a Liurnia seed the remaining 142 are 105 merchant rows, 22 boss rewards and 15 checks whose position was never recovered from the game data (the last group is issue #852's shape, not this one's).
+
+- **`--path <artifacts-root>` on every datamine tool that reads the extracted corpus.** Developer tool, no player-facing change. `elden_ring_artifacts/` is licensing-restricted and never committed, so it lives wherever its owner keeps it -- and it moved, which until now meant editing nine tools that each hardcoded `<repo>/elden_ring_artifacts`. They now share ONE flag and ONE implementation (`tools/artifacts_root.py`): `datamine_grace_ground`, `datamine_item_grace_coords`, `datamine_item_play_regions`, `datamine_msb_item_regions`, `datamine_arena_graces`, `datamine_merchant_shops`, `datamine_dungeon_regions`, `datamine_msb_gated_treasures` (where `--path DIR` means `--root DIR/mapstudio`, and `--root` still wins) and `probe_msb_mapversions` (where it moves where auto-detection looks). The default is unchanged -- absent the flag every tool reads `elden_ring_artifacts/` beside the repo root, byte for byte as before -- and the three tools that already shipped `--artifacts` keep it as an ALIAS of `--path`, so every command in `docs/PLAYAREA-ITEM-SCAN.md` still works verbatim. There is deliberately NO environment-variable fallback: an invisible input is how a scan reads a stale corpus and writes a plausible table, and `ER_EVENT_DIR` already costs us that on the EMEVD side. 🛑 The dangerous half is not parsing the flag, it is a tool that parses it and keeps reading the old root -- two of these built module-level caches AT IMPORT off the old root (`datamine_arena_graces`'s boss/NPC names, `datamine_merchant_shops`'s NpcName FMG list), so their seams REBUILD those rather than only moving path strings. Gated by `test_gf_artifacts_path.py` (8 tests: the helper's default and its refusal of a non-directory, the no-env-var invariant asserted against the source, a census that pins which tools must expose `--path` and which must still accept `--artifacts`, and -- the load-bearing one -- every seam CALLED and every named input asserted to have moved under the new root and to have defaulted under the old one), plus `--path`/`--artifacts` run to byte-identical rows over the synthetic MSB fixtures in `test_gf_item_play_regions.py`. The runbook shows the flag on each command.
+
+- **The witchy'd MSBs are FOUND under the artifacts root now, not assumed to be in `map/`.** Developer tool, no player-facing change. `--path` said WHERE the corpus is; it never said where the unpacked MSBs sit INSIDE it, and each tool answered that privately -- `datamine_grace_ground` read `map/` only, `datamine_arena_graces` read `map/` + `mapstudio/`, `datamine_merchant_shops` read `mapstudio/` + `map/mapstudio/`, `datamine_msb_item_regions` read `mapstudio/` + the root, `datamine_item_grace_coords` read all three, `datamine_msb_gated_treasures` hardcoded `<path>/mapstudio`, and `probe_msb_mapversions` guessed six names. So a WitchyBND export whose maps landed FLAT under `<root>/mapstudio/` -- which is the shape Alaric's export actually has -- ran the same corpus two ways: some tools read it and `datamine_grace_ground.py --path <root>` said `FATAL: no witchy'd m60/m61 MSBs under <root>/map`. That is N copies of one decision disagreeing, which is the exact class of bug `--path` itself was written to kill. There is now ONE candidate list in `tools/artifacts_root.py` -- `<root>/map`, `<root>/mapstudio`, `<root>/map/mapstudio`, then `<root>` itself -- and every MSB-reading tool resolves through it: the one-dir scanners take the first hit, the several-dir scanners (whose reason is real: in 2026-07 `mapstudio/` held 66 of the 118 boss maps while `map/` held all of them) take every hit in the same order. 🛑 A hit is DEMONSTRATED, never assumed: a candidate counts only when it DIRECTLY contains `m??_??_??_??-msb-dcx` children, which is what makes the bare-root layout safe -- a corpus root full of `_pilot`, `breakgeom`, `m00`..`m61` siblings is not mistaken for an MSB dir, and an EMPTY `map/` no longer shadows a populated `mapstudio/`. The narrower flags still win outright (`--root` on `datamine_msb_gated_treasures` and `probe_msb_mapversions`), the defaults do not move, and NO committed output changes -- this is discovery only, asserted byte-identical over the synthetic MSB fixtures. Every FATAL now names every location tried, because a message that names one path teaches the reader the wrong layout. Gated by seven new tests in `test_gf_artifacts_path.py` (the three layouts; `map/` still winning over `mapstudio/`; noise siblings not faking a flat root; an empty `map/` not shadowing; the FATAL naming every candidate; and the motivating case -- a tree shaped exactly like Alaric's resolving for all seven tools off plain `--path <root>`) plus one in `test_gf_item_play_regions.py` running the same fixture corpus from `map/`, `mapstudio/` and the bare root to byte-identical rows.
+
+- **Second-opinion region audit (`tools/audit_region_second_opinion.py`).** Developer tool, no player-facing change. The 305 checks whose names still say `(region unconfirmed)` got their region from a nearest-neighbour hop that cannot fail, so nothing in this repo can tell us which of them are wrong. The tool asks an independent corpus -- Eldenpedia (eldenring.wiki.gg, CC BY-SA 4.0), with the Fandom Elden Ring Wiki (CC BY-SA 3.0) as fallback -- where each check's vanilla item is found, maps the answer into our region vocabulary through a hand-written table, and prints AGREE / DISAGREE / AMBIGUOUS / NO-DATA per check. ERDB (MIT) was evaluated and is not used as a location source: its datamined params carry no placement field. Fextralife is deliberately not consulted. First run over all 305: 51 AGREE, 16 DISAGREE, 3 AMBIGUOUS, 26 NO-DATA, 209 AMBIGUOUS-GENERIC (an item with many vanilla copies cannot name one placement, so the tool refuses those without a request). Output is `greenfield/check_region_second_opinion.tsv` and `greenfield/CHECK-REGION-SECOND-OPINION.md` -- verdicts, region names and page titles only; no wiki prose is committed and the response cache is off-repo. It is a CANDIDATE list for hand-adjudication, never a cull list: NO-DATA means "not readable there", not "the check is fine".
+- **Region second-opinion worksheet page (`er-archipelago-region-second-opinion.html`).** Developer tool, no player-facing change. The audit above produced 305 rows and no ruling; this is the offline page for making the rulings. Same self-contained shape as the check browser -- one file, no server, no CDN, nothing fetched at view time -- with the rows grouped DISAGREE (12 units) -> AMBIGUOUS (3) -> NO-DATA (23) -> AGREE (42), and the 209 generic-name rows collapsed and unrendered until asked for, because a reader who scrolls into 209 sourceless rows starts adjudicating noise. Each row carries our region, the wiki's, the item, the tile, how the region was decided (`check_region_triage.tsv`), and a LINK to the source page; per row there are four rulings -- ours right / wiki right / needs MSB look / generic collision -- plus a free-text note, held client-side only and exported as a paste-ready `flag / ap_ids / audit_verdict / adjudication / note` TSV into both the clipboard and a textarea (a `file://` page cannot hand over a download). 🛑 The adjudication unit is the FLAG, not the tsv row: eight flags carry several ap ids (the Scaled set is one flag with four) and `region_of` decides per flag, so they merge into one row listing every id it speaks for. Adjacent m60 tiles are badged as clusters -- a HINT that a run of checks shared one nearest-neighbour hop, not evidence that the hop was wrong. Built by `tools/build_region_second_opinion_page.py`, wired into `tools/regen_all.py`, and gated by `test_gf_region_second_opinion_page.py` (24 tests: totality against the tsv, the flag-is-the-unit invariant, NO-DATA-is-not-AGREE, the export contract, no external request, byte-identical regen).
+- **An MSB nearest-grace VOTE beside the wiki verdict, and the runbook for the exact answer.** Developer tool, no player-facing change. The second-opinion audit could only speak about 96 of the 305 unconfirmed checks -- its join key is the ITEM NAME, and 209 rows are items like `Smithing Stone [1]` that one wiki page covers everywhere in the game. `tools/msb_region_vote.py` asks a different question of data we already own: fold the check's committed MSB coordinates into the overworld frame (through `tools/overworld_fold.py`, the single shared fold) and vote the region of the NEAREST region-attributed Site of Grace, out of 338 graces attributed via `grace_region_map.tsv` + `grace_ground.tsv` + `REGION_PLAY_IDS`. It votes on 260 of the 305: 241 back our region, 19 do not. `check_region_second_opinion.tsv` gains five columns (`msb_vote_region`, `vote_distance_m`, `vote_unanimous`, `vote_anchor_grace`, `vote_note`) and the worksheet page gains a colour-coded vote column -- backs us / backs the wiki / backs NEITHER / no vote -- with a filter for each and the anchor grace and distance always beside the region. 🛑 IT IS 91.4% ACCURATE AND IT IS NOT INDEPENDENT OF US: `--calibrate` re-derives that figure over 2607 control checks, and it is the same nearest-neighbour shape as the hop that gave these checks their regions, so a vote that AGREES corroborates nothing. That sentence is in the tsv header and across the top of the page, because a number that travels without its caveat becomes an authority. Rows whose anchoring grace got its OWN region from a tile-default row are badged `SUSPECT-ANCHOR`: 17 of the 19 votes-against ride ONE such grace (73211, Yelough Anix Tunnel) and flip Mountaintops rows to Consecrated Snowfield as a block -- a cluster to explain, not 17 defects. `vote_note` also carries `NO-COORDS` (45 rows), `CROSS-TILE-MSB` (3 Bestial Sanctum checks labelled m60_51_41 whose coords are authored in m60_51_43), `COARSE-LOD` and `MULTI-PLACEMENT`. The decisive instrument is not this: `docs/PLAYAREA-ITEM-SCAN.md` is the runbook for pointing `datamine_grace_ground.py`'s Box/Cylinder/Sphere/Composite point-in-volume machinery at item coordinates instead of the 421 graces, which reads the exact runtime `PlayRegionID` the client's kick-watch reads. It needs the extracted MSB corpus, so it runs on Alaric's box; when it has run, its answers REPLACE the votes (`vote_note=PLAYAREA-CONFIRMED`) rather than averaging with them. Gated by 41 tests in `test_gf_region_second_opinion.py` (the vote geometry on synthetic fixtures -- nearer-grace-wins AND its mirror, the LOD1/2 fold pinned against `overworld_fold`, every note, and the calibration re-derived rather than remembered) and 34 in `test_gf_region_second_opinion_page.py` (vote column, side classification, SUSPECT-ANCHOR badge, the disagrees filter, no vote without its distance and anchor).
+
+- **A seed that locks every attack now hands you one attack back, early.** With
+  `ability_lock_mode: progressive` and all four attack inputs locked
+  (`locked_abilities: [r1, r2, l1, l2]`), you started the seed unable to damage anything -- and a
+  great many checks are kill-gated: boss defeats, enemy drops, and every dungeon sweep that pays
+  out on a defeat flag. Logic knows nothing about the locked set, so all four `Unlock:` items could
+  sit behind checks that need a kill. Now, in exactly that case, `Unlock: R1` is declared to
+  Archipelago's `early_items` -- the same seam Roll has used since v0.4.x -- so it is forced into an
+  early sphere and stays exportable, meaning it is early wherever in the multiworld it lands. R1 is
+  a fixed pick, not a draw: the same yaml always forces the same unlock. Lock three or fewer attacks
+  and nothing is forced; you still have an attack button (fists at worst). **Spells deliberately do
+  not count as an attack** -- "spells don't count, you need an L or R button to cast a spell" -- a
+  staff or seal casts on an attack input, so a caster with all four locked is exactly as weaponless
+  as anyone else, and there is no caster carve-out. This is the conservative mitigation, not a logic
+  rule: the reachability graph is untouched, and #1035 stays open for whether a real in-logic
+  "you need an attack to kill things" rule is still wanted on top. (#1035)
+- **The PlayArea item scan (`tools/datamine_item_play_regions.py`).** Developer tool, no player-facing change. `docs/PLAYAREA-ITEM-SCAN.md` step 2 specified the instrument that RULES on a check's region -- the point-in-volume test against MSB `Region/PlayArea`, which reads the exact `<PlayRegionID>` the client's kick-watch reads -- and until now it existed only as prose. It exists now, and Alaric's box run is mechanical. Per item placement in `item_grace_coords.tsv` it folds the point through `tools/overworld_fold.py::world_xz` (fold FIRST, test second: an unfolded LOD2 row lands kilometres outside its own volume and answers `tile-default`, which looks like a result -- issue #338 all over again), tests it against every m60/m61 volume, falls to the interior map's own MSB, then a seam snap within `SEAM_SLACK`, then the PlayRegionParam default for the tile the FOLDED point lands on, then `-`; a `source` column names which of those answered, because a row that cannot say how it was decided is not falsifiable. Output is `greenfield/item_play_regions.tsv` (`flag / map_id / play_region_ids / buckets / source`, one row per placement -- 442 flags are placed twice and collapsing them would pick a winner by file order). NOTHING GEOMETRIC IS RE-IMPLEMENTED: `Vol`, `Vol.contains`, `_shape`, `_load_msb_playareas`, `load_volumes`, `load_interior_volumes`, `_nearest_face`, `SEAM_SLACK` and `MEASURED_GROUND` are imported from `datamine_grace_ground.py`, which gains a shared `load_play_region_defaults()` and an `--artifacts`-style `_set_artifacts_root`. `--graces` is the runbook's step 3, the calibration gate: it runs the SAME pipeline over the warp graces and diffs against the committed `grace_ground.tsv` -- the table calibrated against two in-game kick measurements -- exiting non-zero on a bucket mismatch. Run it before trusting one item answer. Two refusals, neither bypassable except by a `--force` whose help text warns against it: a degenerate scan (fewer than 1000 volumes = a partial witchy export) and a shrinking table (fewer derived rows than the committed one, or than 2000 on a first run). 11 tests in `test_gf_item_play_regions.py` -- the first suite in the repo to witness a datamine tool's GEOMETRY rather than its committed output: a hand-built witchy-style MSB tree with a yaw-rotated Box, a Cylinder, a Sphere and a Composite, the seam and its past-the-slack mirror, the tile-default fallthrough, a cross-tile row that must answer from its `map_id` and not its label, the LOD2 fold as a RED/GREEN PAIR, both refusals, and `--graces` clean against a fixture ground plus its falsifier. It does NOT change any check's region: a confirmed answer is a candidate for `region_overrides.tsv`, adjudicated through the worksheet like every other row.
+
+- **The Chapel of Anticipation return is Liurnia now, not Limgrave.** The Grafted Scion's drops --
+  Ornamental Straight Sword and Golden Beast Crest Shield -- sat under Limgrave on the strength of
+  the prologue fight, which the game expects you to lose. The chapel floor has no Site of Grace of
+  its own, so nothing the Limgrave Lock lights puts you back on it; the route that does is the Four
+  Belfries -> Chapel warp, and the Belfries are Liurnia's (their Imbued Sword Key chest became a
+  Liurnia check in v0.4.11, #940). Both checks now read `Liurnia ::`, and stay barred from hosting
+  progression as before. Nothing else moved: the Cave of Knowledge tutorial pickups and the
+  Fringefolk Hero's Grave rewards below the Stranded Graveyard -- including the Erdtree Greatbow,
+  which the chariot pays out, not a chapel chest -- are all walkable from Limgrave and stay there.
+  Reported by 255. (#1023)
+### Added
+
+- **Region Sync (#1005).** New `region_sync` toggle (default off) for seamless co-op: the party
+  shares one physical world, so when any Elden Ring player with it on unlocks a region, every other
+  opted-in ER slot's door opens too — the region-open flag is set and its graces light, the same
+  write a locally received Lock makes. ACCESS ONLY: nobody is granted the region-Lock ITEM,
+  fill/logic/goal are untouched, and generation is identical on or off. Rides the options echo
+  (OPTIONS_SUBKEYS, so `CONTRACT_HASH` does not move); a seed with it ON emits
+  `requiresClientFeatures ["region_sync"]` so an older client refuses the seed instead of leaving
+  its player region-kicked out from under the party. Client half clients#417; the gitlink moves to
+  its merge (`3967d512`).
+
+- **The player guide says what `(region unconfirmed)` means and what it costs you.** 305 check names
+  still carry that hedge, it shows up on the F6 tracker, and until now nothing told a player how to
+  read it. `release/PLAYER-GUIDE.md` defines it: the check exists and is obtainable, the REGION label
+  beside it is a derivation nobody has walked in game, so an unconfirmed check is barred from hosting
+  progression -- it can hold filler and it can hold your own useful items, and the logic will never
+  require you to reach it to finish. Reported by 255 while reading the tracker. (#1024)
+
+### Changed
+
+- **Ability Lock Mode now defaults to `progressive`, not `static` (Alaric's 2026-08-25 ruling).**
+  If you name abilities in `locked_abilities`, they now start locked and each one comes back as an
+  "Unlock: X" item shuffled into the multiworld, instead of being off for the whole seed. Static is
+  still there as the explicit opt-out (`ability_lock_mode: static`) and behaves exactly as before.
+  🛑 **This changes what an existing YAML generates.** A YAML written before today that sets
+  `locked_abilities` but does NOT set `ability_lock_mode` used to produce a permanent lock and now
+  produces a progressive one: unlock items enter the pool (displacing filler, count-exact), the seed
+  emits `abilityUnlockItems` plus `requiresClientFeatures ["ability_unlock"]` so an older client
+  refuses it rather than leaving the abilities dark, and — because `ability_unlocks_required`
+  defaults ON — those unlocks are `progression` and are ANDed into the goal's held-item
+  requirement, so in a multiworld a partner can be holding your Roll. That is the intent of the
+  ruling; set `ability_lock_mode: static`, or `ability_unlocks_required: false`, to opt out of
+  either half. A YAML that locks NOTHING is completely unaffected: `locked_abilities` still defaults
+  empty and the whole axis stays inert whatever the mode says. No client change and no contract
+  change — `abilityUnlockItems` and the mode's wiring have shipped since v0.5.0, and the mode is not
+  a slot-data key at all (the client reads the emitted map, never a mode string), so `CONTRACT_HASH`
+  does not move. `release/EldenRing.yaml`, the wizard metadata and `wizard.html` are regenerated.
+- **Finger Reader Enia's shop is vanilla again, and every AP id after it shifts down by 100 (#1013).**
+  Her 100 stock rows are excluded from randomization at generation, a rule the project had, lost, and
+  now restores by construction. The reason is in the ledger beside every excluded row: her armor rows
+  release on ceremony flags and her trades on holding the remembrance, so her checks read sphere-1 in
+  the spoiler while her menu is empty at the start of a run -- a check the tracker calls open and the
+  game will not sell you. The exclusion is DERIVED rather than typed (`merchant_shops.tsv` col 3 ==
+  `Finger Reader Enia` -> `shop_rows.tsv` col 5, a FATAL generation error if that derivation ever comes
+  up empty) and ledgered as `enia_vanilla=100`. Her shelves are the game's own wares now.
+  🛑 **`locations` goes 5048 -> 4948, and removing her block renumbers every later AP id by exactly
+  100.** An external tracker or a spoiler log carried over from a v0.5.0 seed will read the wrong
+  check; an in-flight seed stays on its matched v0.5.0 pair, which the exact-version handshake already
+  enforces. Everything that named an id by number is re-pinned by FLAG with its reason written beside
+  it: the four `goal_choice` finales, `goal_locations.MALENIA_GOAL_LOCATION` (7770762 -> 7770662), the
+  capital reconciler, the academy pocket, the isolated merchant, the sweep rungs, the tutorial-boss
+  digest (`0681fe15c878a761` / 4101) and the coverage-gate baselines (4948 / 462, hub bar 83 / 20).
+  Her rows still count as DLC-gated shop **rows** -- the raw set stays pinned at 36, all hers -- they
+  stop being **checks**, so `DLC_GATED_SHOP_CHECK_FLAGS` is empty and the no-DLC filter test asserts
+  against the raw set. Two knock-ons ruled rather than papered over: losing 100 sphere-0/1 purchase
+  slots leaves a thin seed shorter of filler, so `EARLY_SAMPLE_MAX_UNDER` goes 2 -> 4 (the median seed
+  is unaffected at 27 >= 24); and the Scadutree level-12 blessing floor, until now a comment, is
+  enforced in code -- on a degenerate one-DLC-region pool the injector breaches `MAX_POOL_SHARE`
+  loudly ("cannot reach its target") instead of shipping a silent shortfall. 🛑 The 8 remaining
+  `EniaShop`-tagged locations are NOT hers (Gowry, Corhyn, Miriel, the Dragon Communion legendary
+  slots); the tag is a misnomer now, and renaming it is churn for another change. (#1013)
+
+### Fixed
+
+- **Client gitlink -> `d99d81d` (clients#455, clients#467, clients#468).** Bloodborne location
+  checks no longer disappear when a silently dead socket accepts the local write but the server
+  never receives it. The client keeps a server-confirmed checked-location view separate from
+  archipelago-rs's optimistic local cache and resends until `RoomUpdate` acknowledges the check.
+  Retries are per-location and bounded in frequency -- immediate, then 1/2/4/8/16/30 seconds,
+  staying at 30 seconds until confirmation -- with an immediate attempt after reconnect. There is
+  deliberately no terminal attempt count, because one would recreate the lost-check failure after
+  the limit. No Elden Ring gameplay behavior changes in this client bump.
+
+- **Valid progressive no-op and flags-only rungs no longer produce a false client contract warning
+  (#465).** The world already accepted the exact `{noop: true}` sentinel used to preserve flask copy
+  ordinals and non-empty flags-only bell rungs, while the generated Rust validator required every
+  rung to carry both `goods` and `flags`. The generated predicate now mirrors the authoritative
+  Python checker: no-op is an exact one-field shape, flags-only effects must be non-empty, and a
+  goods effect must explicitly declare boolean `consumed`. Positive and negative Rust tests are
+  generated beside it so this validator drift cannot silently return. Client gitlink -> `6131252`
+  (clients#466); no slot-data or contract-hash change, and existing valid seeds stop logging
+  `contract: SHAPE 'progressiveGrants' expected NestedGrants`.
+
+- **Demi-Human Queen Marigga and the Jagged Peak Drake stopped promising Gravesite payouts for fights Gravesite cannot reach (#1066).** J reported it on Discord 2026-08-26: "It says that the Demi-Human Queen Marigga and Jagged Peak Drake are in logic but i cant really get to either area without it kicking me out." The kick was correct and the tracker was wrong. Both bosses were already ruled in game by Alaric on 2026-08-10 -- Marigga is on the **Cerulean Coast**, the Drake is on the **Jagged Peak** (`boss_verdict_tiles.tsv`), and the PlayArea scan agrees (her tile `m61_46_40` buckets 68300/68400 = Cerulean; the Drake's nearest scanned tile `m61_49_38` answers 68410 = Jagged Peak). Neither has a `PlayRegionParam` boss-area row, and `boss_arena_rulings.tsv` -- the table that holds exactly this ruling -- was loaded AFTER the sweep host derivation had already run, so a ruling could only relabel `SWEEP_ARENA_REGION` while the members stayed dealt out of the tile-decode region. That is the arena/members split #1059 forbids, which is why the obvious one-line fix hard-failed gen. **The fix is at the host derivation, exactly as #1059 fixed Jori:** the rulings table now loads beside the measured `BOSS_AREA_REGION` and is ranked between it and the tile decode, so ONE answer feeds both the host region and the arena label and a ruling **re-homes** a boss instead of tearing it in half. Marigga becomes a Cerulean divvy host (9 members) and the Drake a Jagged Peak one (15); their Gravesite-measured members fall back into the Gravesite pool and are re-dealt to Gravesite's own hosts by the existing machinery -- 44 member links move host, **every one of them staying inside its own region**, and the Knight of the Solitary Gaol goes 27 -> 66 members while Rellana goes 41 -> 46. Three checks change region with them: `530845` Star-Lined Sword and `530850` Dragon Heart are the two bosses' OWN DROPS, which had fallen to the tile decode for want of a boss-area row and so filed in Gravesite an item obtainable only by winning a fight on foreign ground (J's symptom, one layer down), and `68750` Mad Craftsman's Cookbook [1] is the separable misfile #1066 named -- the scan answers it EXACTLY at bucket 68600 = Abyssal. Census delta is those three and nothing else: Gravesite 225 -> 222, Cerulean 104 -> 105, Jagged Peak 37 -> 38, Abyssal 23 -> 24. **No AP id moves** (4,663 flag->id pairs identical) and no location is added or removed. 🛑 The two drops are pinned per-flag in `FLAG_REGION_OVERRIDE` rather than by teaching the boss-drop branch to read the rulings table wholesale: that would move drops for all 62 ruled triggers at once, unmeasured, and the note beside `_ARENA_REGION_CURATED` says why a sweep ruling must not be folded into `BOSS_AREA_REGION` -- it would take Margit's drop out of Limgrave. Acceptance test (rule 11) is J's seed: a seed keeping Gravesite without Cerulean or Jagged Peak now lists neither boss's rows, and no Gravesite check reads `also granted by Demi-Human Queen Marigga` / `also granted by Jagged Peak Drake`. The #1059 containment gate is GREEN with the new rulings in place, which is the point of the shape: arena coverage rises 185 -> 187 of 211 triggers and the split set stays 0.
+
+- **The Roundtable Golden Seed is a Stormveil check, and the ground audit is at zero pinned mismatches (#445).** One check moves: `Roundtable Hold :: Golden Seed (region unconfirmed)` becomes `Stormveil :: Golden Seed - around Lake-Facing Cliffs`. The Hold was never a derivation for f400220 -- its legacy attribution row reads `map=PENDING, method=global_filler`, and `location_descriptions.tsv` records that Alaric's 2026-08-04 pass over all 43 Golden Seeds left this one blank because nobody could say where it is. The full-census coordinate refresh answered it: its only lot (112200) is placed on three MSB enemies, `m10_00` -- Stormveil, play_region bucket 10000, the tile that carries 127 other Stormveil checks -- and the play_region-less Limgrave tiles `m60_45_38` / `m60_46_36`. **Why this mattered rather than being a label:** the HUB is in scope in EVERY seed, so the Hold filing CREATED this check unconditionally while its only witnessed ground sat behind the Stormveil lock -- a live check on the progression surface standing on ground the seed can forbid you to walk to (#680's shape). The nearest-grace join independently agrees now that the region does: the descriptor resolves to Lake-Facing Cliffs, and the check loses its `(region unconfirmed)` hedge. `region_overrides.tsv` and `gen_data.FLAG_REGION_OVERRIDE[400220]` carry the reason. 🛑 **The move settles where the check is FILED and nothing else.** It keeps its progression bar and its `(region unconfirmed)` hedge — it is in `_REGION_OVERRIDE_UNCONFIRMED_FLAGS` beside the Snowfield tears, because it has three placements, only one of which any table can resolve to a play_region, and its exact pickup ground has never been witnessed in game. This is the check that softlocked `AP_55352390472076588352` (`test_gf_defaulted_region_guard` is named after it), so it is the last one to promote to a progression host on a derivation alone; that promotion is a separate step and wants an in-game witness.
+
+  The other three rows the audit raised this session were ruled, not moved. **f400036** (`Mohgwyn :: Festering Bloody Finger`) keeps Mohgwyn and is now excused as SWEEP-ANCHORED: its award site is Mohg's own m12_05 grant, which has no MSB coordinate for the join to see, so the only coordinates it has are two placements of the shared lot 110301 on invader NPCs standing in Limgrave; killing Mohg grants it, so Mohgwyn alone always suffices -- and since #1059 made member/arena co-region a gate, moving it onto the accusing ground would BREAK that gate. Mohg's trigger enters `RULED_SWEEP_ANCHORS` with that ruling written out, the way that table requires. **f400175** (Farum Azula) and **f400349** (Roundtable Hold) leave the pinned list in the other direction: both were pinned when their only coordinate was a foreign one, and the refresh added the site that was missing -- `m13_00` (Crumbling Farum Azula, bucket 13000) and `m11_10` (the Hold itself, bucket 11100). Their attributions were right all along; the corpus could not witness them. 🛑 An empty pin is not a clean bill: the audit still resolves 2,628 of 4,912 checks, so it means "nothing the join can see", never "nothing is wrong".
+
+- **A lean-seed test was a 1-in-4 lottery, and the draw is pinned now.** Developer gate, no player-facing change. `test_gf_filler_economy_floor::test_thin_stone_reservation_is_warned` asserts that a seed too small for its recipe's stone weight SAYS SO rather than shipping quietly — but its fixture never guaranteed the smallness: `num_regions: 1` draws *which* region at random, and a big enough draw affords the ladder honestly and rightly says nothing. Measured over seeds 1000–1011: 9 warn, 3 do not. The identical 9/12, the same three seeds, reproduces against `origin/main`'s generated modules, so this was inherited and unrelated to the region move that happened to roll it. The draw is pinned to a seed the fixture's own premise holds on, so the guarded sin — a thin reservation shipping in silence — is exercised on every run instead of three runs in four.
+
+- **One skip was unledgered from the moment #1059 merged, and nothing said so.** Developer gate, no player-facing change. `test_gf_sweep_arena_reachability`'s severity loop loud-skips because #1059 drove the arena/members split set to zero at the source, and its sibling asserts that emptiness — a deliberate skip, but not a *ledgered* one, so the CI skip census was owed a family and never got one. It stayed invisible because main's union-verdict job was aborting on a red shard before the census ran: an aborting gate hides every gate below it. Ledgered now, count 1, with the note that reaching 0 means a split came back and is to be diagnosed rather than rebaselined.
+
+- **Client gitlink -> `b5a2d21` (clients#441-#447).** One Elden Ring fix rides in: the grant-stall guard now re-arms on the **world epoch** instead of on any unstable tick (clients#442, from TechnoForge's v0.5.0 log forensics on clients#439) -- a stalled delivery no longer re-parks and re-announces itself every tick, so the park/retry popup flood is bounded per epoch instead of repeating for as long as the world stays unstable. The rest of the bump is Bloodborne-client work with no Elden Ring effect: the attach-wait freshness floor resets when shadPS4 truncates its log (clients#441), a concurrent inventory pickup during a delta grant is scored as a completion rather than a park (clients#444), and passive per-grant delivery diagnostics accumulate from ordinary play (clients#447).
+
+- **Ten checks moved to the region they physically stand in, measured by the PlayArea scan (#1054, #1046).** The scan built in this same window reads the exact runtime `PlayRegionID` the client's kick-watch reads, and it disagreed with 114 of the 679 checks it can answer exactly. Ten of those are ground-placed pickups -- the population the instrument actually rules on -- and only those ten moved. **Five Ancient Snow Valley Ruins pickups** (Warming Stone, Invigorating White Cured Meat, Smithing Stone [7], the Traveling Maiden set, Golden Rune [13]) were filed Consecrated Snowfield but stand in PlayArea volume `6501000`, which is **Mountaintops of the Giants**; a sixth in the same cluster answers `65030` and correctly stays Consecrated Snowfield, which is why these are five per-flag pins rather than one tile pin -- that tile straddles the Grand Lift of Rold. **Five Rauh pickups** move on 255's report that the upper Ancient Ruins are reachable on the Rauh Base Lock alone: Shadow Realm Rune [7] and Flight Pinion go Rauh Base -> **Ancient Ruins**, the Two-Headed Turtle Talisman goes Rauh Base -> **Gravesite**, and -- the half the report did not predict -- Grave Glovewort [5] and a Larval Tear go Ancient Ruins -> **Rauh Base**. Two of five moving the OTHER way is the point: a queue that only ever moved rows in the reported direction would be the instrument agreeing with the reporter instead of measuring. Census: Consecrated Snowfield 151 -> 143, Mountaintops 191 -> 199, Gravesite 224 -> 225, Rauh Base 91 -> 90; the location total is unchanged at 5048 and **no ap id renumbered**, so an in-flight seed's ids still mean what they meant. The NPC-relocation families in the same queue were deliberately NOT applied -- 16 Roundtable rows and 13 Limgrave Ash-of-War rows answer Mt. Gelmir because Patches and Bernahl are standing at Volcano Manor, and 24 "from Moore" rows answer Scadu Altus because Moore relocates. For a shop or grant flag the scanned point is where the NPC ended up, not where the check is. Each move carries its own `region_overrides.tsv` row citing its scan answer, and `test_gf_playarea_region_moves.py` pins the movers, the carve-outs and the ap ids.
+
+- **Yelough Anix Tunnel is Consecrated Snowfield -- and already was (Alaric's ruling, 2026-08-26).** Recorded as a deliberate NO-OP. The audit worksheet flagged 19 Yelough-anchored checks as Mountaintops-vs-Consecrated-Snowfield candidates riding one `SUSPECT-ANCHOR` grace (73211), and the PlayArea scan answers `none` for every one of them -- no volume, no seam, no tile default -- so the instrument cannot settle them and Alaric ruled them from the wiki instead. Checking the shipped data against the ruling rather than against the worksheet: grace 73211 files under play_region `65002`, which is Consecrated Snowfield; its ground bucket `32110` is Consecrated Snowfield; 73211 already rides the Consecrated Snowfield grace bundle; and all 25 Yelough-labelled checks already present as Consecrated Snowfield. **The Mountaintops premise came from a stale `our_region` column** in `check_region_second_opinion.tsv`, written before the regen that moved them -- the same staleness #1054 records for `check_region_triage.tsv`. Nothing moves, and the ruling is now pinned by `test_gf_playarea_region_moves.py` and recorded in `region_overrides.tsv` **labelled as a wiki ruling, explicitly not scan evidence**, so a future flip back to Mountaintops fails a written decision instead of passing quietly.
+
+
+- **A boss can no longer hand you checks in a region you never had to enter (#1059).** Reported on Discord 2026-08-26 by **NovahDango**, who screenshotted five `Abyssal ::` checks -- Clarifying Boluses, Frenzyflame Perfume Bottle, Scadutree Fragment, Shadow Realm Rune [7], Swollen Grape -- each reading "also granted by Jori, Elder Inquisitor". Jori is fought in **Scadu Altus**: `PlayRegionParam` puts his arena in bucket `40020` and Alaric walked it in game on 2026-08-10. Alaric's ruling: *"there shouldn't be any, or cross-region boss sweeps in general."* Two causes, both fixed at the source. **(1)** `boss_area_regions.tsv`'s `region` column is a generated snapshot of what the bucket->region spine said the day it was emitted, and the spine moves -- six of its 120 rows were stale, still filing `11050` under Leyndell after the Ashen Capital split, `34100` under Limgrave after the #202 Divine Tower ruling, and two rows naming **"Sewer"**, a region deleted outright by the 2026-08-20 Shunning-Grounds merge. Generation now re-folds the BUCKET through `region_groups.py` and ignores the column, and errors out rather than falling back if a bucket has no owner. That alone removed 17 of the 22 cross-region member links. **(2)** A legacy boss's host region ranked the nearest-neighbour tile decode -- the same machinery that regions the CHECKS -- above its measured arena, so the boss inherited its members' region by construction and the disagreement was invisible. The measured arena now wins. **Nothing was dropped: the five Abyssal checks were re-HOSTED**, and Midra, Lord of Frenzied Flame -- Abyssal's own major -- picked them up. 47 checks changed which boss grants them, all within their own region; the trigger count (211) and the member-link total (4101) are unchanged, and zero checks lost a granter. Margit keeps his #523 Stormveil ruling, now applied where it also moves his members instead of only his label. Lilith's report in the same conversation -- `Belurat :: Message from Leda`, granted by the Divine Beast Dancing Lion, physically in Shadow Keep -- is **not** this bug and is not changed: `m20_00` is Belurat, so that sweep is contained; f580600 has fourteen placements across three maps and belongs to the disjunct-multisite question (#320/#502). Until now the repo could only observe such a split and hope the seed hid it -- the arena-reachability drop fires only when a seed keeps the members' region *without* the arena's, so a seed holding both paid the grant out in full. **The invariant is now a hard generation failure and a ledgered gate** (`test_gf_sweep_region_containment.py`), stated against the measured arena region rather than the members' own -- the earlier "0 cross-region members" measurement was true and meaningless, because that number was derived from the members and could not disagree with them.
+- **30 checks were filed in the wrong region, and the PlayArea scan can say so exactly.** Ground you stand on is measured now, not guessed: `greenfield/item_play_regions.tsv` reads the play_region VOLUME each pickup physically sits inside -- the same id the client's kick-watch evaluates -- while the region a check has carried until now comes from the NEAREST GRACE, a distance heuristic that is wrong wherever a region border runs closer than the nearest lit grace. #1054 measured 679 checks with an exact scan answer and found 114 disagreeing with `data.py`. 🛑 THEY MUST NOT BE BULK-APPLIED, and that is the finding as much as the count: a large share are NPC-RELOCATION ARTIFACTS, where `item_grace_coords.tsv` carries a PLACEMENT and for a shop or award flag the placement is where the NPC ENDED UP -- 16 `Roundtable Hold ::` rows and 13 `Limgrave ::` Ash-of-War rows answer Mt. Gelmir because Patches and Bernahl are at Volcano Manor; 24 `Gravesite ::` rows "from Moore" answer Scadu Altus because Moore relocates. The scan is right about the POINT and wrong about the CHECK for every one of them, so they are withheld and stay in #1054, along with the two deliberate carves the scan also flags (the #885 Hippo ruling into Shadow Keep, and the Leyndell/Ashen-Capital finale sub-carve). What moves is 30 GROUND-PLACED PICKUPS, each pinned individually in `gen_data.FLAG_REGION_OVERRIDE` with its scan row and excused to the independent provenance oracle in `greenfield/region_overrides.tsv`: five Ancient Snow Valley Ruins rows Consecrated Snowfield → **Mountaintops of the Giants** (bucket 65010; the sixth, `1050567600`, answers 65030 and correctly stays Snowfield); five Rauh rows resolving 255's report in #1046 -- the upper Ancient Ruins are their own region with their own Lock, so `2045467050` and `2045477020` go Rauh Base → **Ancient Ruins**, `2046457000` Rauh Base → **Gravesite**, and `2045457010` and `2046467800` run the other way, Ancient Ruins → **Rauh Base**; `1047517000` Altus → **Mountaintops of the Giants** at the Forbidden Lands, independently corroborated by this same regen moving grace 76500 the same way; three South Raya Lucaria Gate rows Liurnia → **Raya Lucaria Academy**; three Bower of Bounty / Bridge of Iniquity rows Mt. Gelmir → **Altus**; four Cerulean Coast rows Gravesite → **Cerulean**; four Ellac River / Fort of Reprimand rows Jagged Peak → **Gravesite**; four Church Ruins / Woodland Trail rows into **Abyssal**; and `f580600` "Message from Leda" Belurat → **Scadu Altus**, which Lilith reported the same day ("this one is in Shadow Keep, not in Belurat") and the scan answers exactly as bucket 69000 -- player and scan agree it is not Belurat, and the exact answer is taken over the prose. Per-region census delta: Mountaintops +9, Abyssal +4, Cerulean +4, Altus +3, Raya Lucaria +3, Gravesite +1; Consecrated Snowfield −8, Jagged Peak −6, Mt. Gelmir −4, Liurnia −3, Belurat −1, Rauh Base −1, Scadu Altus −1. Total `locations` is unchanged at 5048 and **not one ap id renumbers**, moved rows included (#952's rule, verified by diffing every flag's id across the regen). 🛑 THE YELOUGH ANIX RULING MINTS NO PIN. Alaric ruled Yelough Anix Tunnel into Consecrated Snowfield on 2026-08-26, and all 17 `SUSPECT-ANCHOR` rows the nearest-grace vote anchored on grace 73211 ALREADY derive Consecrated Snowfield, as does the grace itself (`region_graces.py`; `grace_region_map.tsv` 73211 → 65002, the Snowfield grace group). The `our_region` column of `check_region_second_opinion.tsv` still reads Mountaintops for them because that table is STALE against `data.py` -- #1054's own "separate finding" -- not because the checks are; pinning them would be a redundant manual override, which CONTRIBUTING makes a failure. The ruling is recorded in `gen_data.py` beside the pins that did move, naming all 17 flags. (#1054, #1046)
+
+- **The overworld seam step was missing from `datamine_grace_ground`, so three graces answered `none` where the item scan answered the ground under their feet.** Developer tool, no player-facing change. With the tile frame fixed (above), Alaric's box run of `--graces` left exactly one delta class: three BUCKET MISMATCHes and two source deltas, every one of them a grace sitting a few metres OUTSIDE a PlayArea volume. `datamine_item_play_regions` applies the `_nearest_face` / `SEAM_SLACK = 8.0` seam snap on the OVERWORLD; `datamine_grace_ground` only applied it to INTERIORS and fell straight to the tile default outdoors. That was the last semantic split between the two tools, and it was the item scan that was right: the engine's containment tolerance does not stop applying because the point is outdoors, and a grace 1.7 m from a face answering `none` is the less correct answer. 🛑 The gate was NOT softened to accept none-vs-seam — `--graces` keeps its strict bucket semantics; the fix went into the derivation. `datamine_grace_ground.derive_ground()` now owns the whole `volume -> seam -> tile-default -> none` ladder for BOTH the overworld and the interiors, and `datamine_item_play_regions.derive` is an ALIAS of that function (`derive = gg.derive_ground`), not a copy — so a third divergence cannot be written, only imported. `grace_ground.tsv` must be REGENERATED on the box for this to land (the MSBs are deliberately not in `gen_inputs.db`, so it cannot be regenerated in CI or in a sandbox and was deliberately not hand-forged): expect three rows to gain a bucket via a seam — 76214 Main Caria Manor Gate → `62000` @1.7 m, 76453 Fort Faroth → `64020` @6.3 m, 76500 Forbidden Lands → `65000` @3.6 m — and two source upgrades at 76230 (@7.4 m) and 76402 (@0.9 m) whose buckets do not move. Measured against a simulated regen in-sandbox, what that lands downstream is: **grace 76500 "Forbidden Lands" moves from Altus to Mountaintops of the Giants** in the generated `region_graces.py` (with both regions' landmark lists shifting), which is the correction rather than a side effect — the Forbidden Lands grace stands on Mountaintops ground; the GRACE-GROUND GATE stays green with `locations` still 5048 and no region losing its overworld face; and `msb_region_vote`'s anchor coverage rises 340 → 342 graces with `SUSPECT-ANCHOR` unchanged at 24 (a `seam:` row is correctly not suspect — that badge is for `tile-default`, a tile-wide guess, and a volume face is real geometry). One more thing the run exposed: an MSB volume name can contain a literal **TAB** (`m60_39_54`'s `プレイ領域 6300030<TAB>高山_地図断片８_閉込ボス領域１`), which had CORRUPTED grace 76322's committed row — the tab split the tab-separated `source` column and pushed `tile` off the end, so that row's tile column holds the second half of a volume name, and `--graces` reported a phantom source delta purely because the reader truncated the committed source at the tab. `_srcname()` collapses whitespace where a name becomes a source string; the regen repairs the row and its bucket (63000) does not move. Gated by 11 new tests in `test_gf_item_play_regions.py` — an overworld grace 4 m from a face now answering `seam:` (RED on the old code, verified by reverting the step), its past-the-slack mirror still answering `tile-default`, the interior ladder unchanged, containment still outranking the seam, the tab-in-a-name row shape, the ladder asserted to be ONE function object, and the decisive one: both tools' whole pipelines run over the same fixture grace corpus and their per-grace `(buckets, source)` answers diffed, because sharing a function proves nothing if one caller builds a different map id. `test_gf_grace_tile_frame.py`'s selection predicate now skips `seam:` alongside `volume:`/`measured:` — a seam answer comes from a face and is not re-derivable from the params alone — so it stays green against the committed tsv AND against the regenerated one (verified both ways in-sandbox).
+
+- **The overworld tile frame is centre-origin, and the PlayArea scan had been reading the tile next door.** Developer tool, no player-facing change. The item scan's calibration gate (`--graces`, the runbook's step 3) REFUSED on Alaric's box with bucket mismatches that pointed in opposite directions — grace 76416 committed `none` but derived `64010`, grace 76420 committed `64000` but derived `none` — and no volume was involved in either: both were pure PlayRegionParam lookups, disagreeing only about WHICH tile's row governs the point. `datamine_grace_ground` used the grace's AUTHORED `(gridXNo, gridZNo)`; `datamine_item_play_regions._fine_tile` recomputed one as `floor(world / 256)`. 🛑 `floor` was the bug, and it was wrong for **2053 of the 2768 overworld item placements** — never by more than one tile index, which is exactly why a whole table of wrong answers looked plausible. The overworld tile's local coordinate frame is centred on the tile, not cornered on it: of BonfireWarpParam's 450 overworld grace local axis values, 438 (97.3%) lie in `[-128, 128)` while only 227 (50.4%) lie in `[0, 256)` — and **222 are negative**, which a corner origin cannot produce; `item_grace_coords.tsv` agrees at 4732/5010 (94.5%). So tile `t` owns `[t*256 - 128, t*256 + 128)` and the attribution ROUNDS. There is now ONE implementation, `overworld_fold.fine_tile`, next to `world_xz` and for the same reason (#338), and BOTH tools call it — `datamine_grace_ground` stops looking up the authored tile, so the two derivations cannot drift again. Round-tripping every grace through fold-then-attribute returns its own authored tile for **214 of 225** (under `floor`: 53), and the 11 that still move are genuine SPILLERS whose local coordinate runs past ±128 — they physically stand on the neighbour, and the neighbour's row is what the engine reads. Five committed `grace_ground.tsv` rows move as a result (76214 → `-`, 76236 → 62000, 76304 → 63000, 76905 → 69020, 76936 → 69300); all five had `tile-default`/`none` as their source, i.e. no volume ruled on them, so the new value follows from the params alone. Neither in-game kick anchor is touched: 76841 and 72102 are volume- and `MEASURED_GROUND`-decided respectively, and the region grace-ground gate stays green. Gated by `test_gf_grace_tile_frame.py` (5 tests, and it needs NO MSB corpus — the centred-vs-cornered premise MEASURED rather than asserted, the round-vs-floor round-trip as one comparison, 76416/76420 pinned by name as the motivating case, the five spillers pinned so a regen cannot quietly revert them, and the whole committed tile-default population re-derived from `gen_inputs.db`, so the pure-table-lookup half of `--graces` now reds in CI instead of on Alaric's box) plus a red/green pair in `test_gf_item_play_regions.py`'s synthetic fixtures at local −110 and +140.
+
+- **The wizard's `curated_filler` share column now re-shares when you edit a weight.** The
+  `{category: weight}` grid draws a `%` of the tail beside every weight and a footer naming the
+  total those percentages are shares of — and both were computed once, when the row was built, and
+  written in as text nothing ever touched again. You typed juice 63 → 20, the yaml moved correctly,
+  and all seventeen percentages plus the footer's "a share of 103" went on describing the recipe you
+  had *before* the edit. Worse at the bottom of the range: zeroing every weight commits the EMPTY
+  recipe — no gear and no upgrade economy — while the grid kept quoting the shipped default's
+  shares and the footer kept promising 103 points of filler. The column and the footer now track the
+  weights live, per keystroke, and an all-zero recipe reads `--` with the empty-recipe warning
+  instead of a stale percentage. Reported by NovahDango. (#1031)
+
+- **Client gitlink -> `f5b9187` (clients#456, clients#458).** Both riders are Elden Ring, and both are
+  about Tarnished Edition. 🛑 **The 2.7.0.0 support that rides in here has never been run in a game.**
+  clients#456 adds a `Ww270` arm to the version gate on offsets derived entirely offline -- 93 in the
+  pinned `eldenring` crate and 8 of the client's own, now dispatched through a new `rva_table` module
+  instead of being constants baked to 2.6.2.0 -- so a 2.7.0.0 player gets a build that can find out
+  rather than the panic the old gate had waiting for them. PE detection happens once and is cached, so
+  the crate's table and ours cannot disagree about which executable is running, and attach logs a
+  warning on the 2.7.0.0 path saying in as many words that the addresses are unverified. The JP
+  Tarnished exe is NOT supported and the rejection text says so: its binary was never available to
+  derive a table from. Both git deps point at `4laric/fromsoftware-rs` @ `63a0c372` for now, a fork of
+  the previously pinned `8c67a84f` whose only delta is the added `Ww270` arm -- TEMPORARY, and it goes
+  back to upstream the moment upstream ships its own generated arm. 2.6.2.0 and 2.6.2.1 keep working
+  unchanged; the arms coexist. clients#458 is the first smoke run's two findings: `fmg_repo` is the one
+  client RVA that is READ and never CALLED, so no prologue guard covers it and a range test any
+  pointer-shaped word passes was the entire screen -- it now validates the FMG STRUCTURE at first use
+  (ordered, disjoint group spans; an entry count in band and consistent with them; every known-vanilla
+  probe id resolving to well-formed text), and a rejection turns the FMG layer off for the session with
+  one ASCII log line instead of crashing or painting garbage item names. That guard is deliberately
+  language-independent -- it never compares the text to English words. And the `spell_slot_length`
+  oracle, which exists to spot a stacked `regulation.bin`, was accusing vanilla 2.7.0.0 of being modded
+  on every session because its "expected 25" was a 2.6.2.0 figure; the expectation is per-build now,
+  off the same detection `rva_table` dispatches on (vanilla 2.7.0.0 measures 105 of 317 rows).
+
+- **Groundwork: two CI flakes killed at the fixture, and the generator input stamps stop depending on
+  where the artifacts came from.** Developer gates, no player-facing change. The chandelier dedup
+  pool-cardinality assertion drew at random and the merchant bell pool witness could draw a seed whose
+  D and Rogier awards had no sealed merchant region, so both sometimes asserted against a world that
+  did not hold their premise; both now use a deterministic draw and a DLC-only fixture (#1065, #975).
+  Artifact identity for the deterministic generator stamps is derived from the committed
+  `gen_inputs.db` manifest rather than from extraction context, which also covers leftovers and
+  unextracted bundles, and that suite is registered in the generators ledger so the workflow actually
+  runs it -- a repo-only suite that no job executes is the exact shape of dark test this ledger exists
+  to catch (#1010).
 
 ## v0.5.0 — 2026-08-22
 
@@ -6701,32 +7014,4 @@ client does everything live).
 - **Real item shuffle** — each check pays out its own vanilla ER item, shuffled.
 - **Great-Rune goal** (`ending_condition: great_runes`), auto-clamped to what is
   reachable.
-- **Dungeon sweeps**, **pool building + varied filler**, **grace bundling** (a
-  Lock lights all of its region's graces at once).
-- **Scaling & QoL** — completion scaling, Scadutree blessing scope, start
-  torch/steed/flasks, all maps revealed, early leveling, no weapon requirements,
-  buyable Stonesword Keys, flattened smithing ladder, DeathLink.
-
-### Fixed (playtested 2026-07-12)
-
-- Spirit Calling Bell now usable from the received item.
-- Map-piece items no longer minted on connect; the reveal fires without grants.
-- Flasks no longer double-granted after a tutorial-death reload.
-- A rolled start can no longer leave you without Torrent.
-
-### Known issues
-
-See `KNOWN-ISSUES.md`. Headline: a few checks can still pay the vanilla item
-(contained — cannot strand a run); DLC seeds are experimental; base game is the
-supported config.
-
-### Licensing
-
-Upstream Archipelago license (MIT); the runtime client is MIT and the
-data-derived apworld ships no FromSoftware content or third-party randomizer
-code. See `ATTRIBUTION.md`.
-
----
-
-*Elden Ring and Shadow of the Erdtree are trademarks of FromSoftware / Bandai
-Namco. This is an unofficial fan project and ships no game assets.*
+- **Dungeon sweeps**, **pool building + varied filler**, **grac

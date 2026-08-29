@@ -146,6 +146,14 @@ def test_the_guide_is_actually_present():
                     "so if it has moved, this gate must move with it rather than skip.")
 
 
+def test_region_unconfirmed_tracker_label_is_explained_to_players():
+    """#1024: the F6 tracker exposes this generator label, so the shipped guide must define it."""
+    text = re.sub(r"\s+", " ", _guide_text().lower())
+    assert "(region unconfirmed)" in text
+    assert "exact region has not yet been verified" in text
+    assert "cannot hold a progression item" in text
+
+
 def test_every_option_the_guide_names_exists():
     """A renamed option leaves the guide telling players to set a key Archipelago silently ignores.
 
@@ -226,6 +234,19 @@ def test_the_separate_save_promise_is_never_unconditional():
             "path:\n\n" + para + "\n\nThe separation comes from `savefile` in the me3 profile, "
             "not from the client. Stated flat, this is false for every player following our own "
             "instructions to launch through matt's randomizer.")
+
+
+def test_the_separate_save_guide_explains_me3_clones_the_vanilla_save():
+    """Seeing old character names in the AP menu must not be diagnosed as sharing.
+
+    me3 creates a missing custom save by copying the base save. Without saying
+    that, "separate save" sounds like a new empty character list and sends
+    players toward an unnecessary Alt Saves installation.
+    """
+    text = _guide_text().lower()
+    assert "copies" in text and "er0000.sl2" in text and "ap_me3.sl2" in text
+    assert "not visible" in text and "vanilla" in text
+    assert "alt" in text and "saves dll" in text and "not needed" in text
 
 
 def test_the_dlc_region_count_the_guide_states_is_the_real_one():

@@ -91,6 +91,12 @@ def _locations():
     return ast.literal_eval(m.group(1))
 
 
+def _not_randomized():
+    txt = open(DATA, encoding="utf-8").read()
+    m = re.search(r"^NOT_RANDOMIZED\s*=\s*(\{.*?\n\})", txt, re.S | re.M)
+    return ast.literal_eval(m.group(1))
+
+
 @unittest.skipIf(not os.path.isfile(TABLE), "unplaced_global_tiles.tsv not beside the package")
 class UnplacedGlobals(unittest.TestCase):
 
@@ -195,7 +201,9 @@ class UnplacedGlobals(unittest.TestCase):
         a row proves nothing about the world having a location."""
         loc = _locations()
         in_world = {f for _r, v in loc.items() for (_n, _a, f) in v}
-        missing = sorted(int(c[0]) for c in _rows() if int(c[0]) not in in_world)
+        not_randomized = _not_randomized()
+        missing = sorted(int(c[0]) for c in _rows()
+                         if int(c[0]) not in in_world and int(c[0]) not in not_randomized)
         self.assertEqual([], missing,
                          "%d flag(s) carry a derived tile but produced NO location -- the table is "
                          "being written and dropped by its own consumer: %s"
@@ -269,6 +277,12 @@ class UnplacedGlobals(unittest.TestCase):
         by_flag = {int(flag): (map_id, source) for flag, map_id, source, _name in out}
         self.assertEqual(("m31_11_00_00", "talk_esd"), by_flag.get(400430))
         self.assertNotIn(400440, by_flag, "common overworld talk bucket is not a placement")
+
+    @unittest.skipIf(not (_TOOL and os.path.isfile(_TOOL)), REPO_ONLY_REASON)
+    def test_incomplete_117_talk_extract_retains_corroborated_awards(self):
+        mod = _dug()
+        self.assertEqual(8, len(mod._CORROBORATED_TALK_AWARD_MAP))
+        self.assertEqual("m31_11_00_00", mod._CORROBORATED_TALK_AWARD_MAP["400430"])
 
 
 

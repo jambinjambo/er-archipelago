@@ -190,9 +190,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
 {
  "schema": 1,
  "game": "Elden Ring",
- "apworld_version": "0.5.1",
+ "apworld_version": "0.5.3",
  "source": "greenfield/eldenring core.py -> GFOptions (imported, upstream AP 0.6.7)",
- "source_sha256": "058c6f0aac55d85551201a85681f2f26bb1da0e68afe74a291ef1c1a27234086",
+ "source_sha256": "7b163209b5a83ba0e2a525eec458c26ef1ea8ed03b9f3114c2d2aadb420f5490",
  "field_order": [
   "num_regions",
   "num_regions_order",
@@ -200,6 +200,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
   "ending_condition",
   "goal_great_runes",
   "enable_dlc",
+  "enable_tarnished_pack",
   "dlc_only",
   "locked_abilities",
   "ability_lock_mode",
@@ -210,6 +211,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
   "auto_equip",
   "no_equip_load",
   "dungeon_sweep",
+  "full_area_sweeps",
   "open_boss_doors",
   "death_link",
   "reroll_enemy_drops",
@@ -288,6 +290,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "collapsed": false,
    "options": [
     "enable_dlc",
+    "enable_tarnished_pack",
     "dlc_only",
     "scadutree_blessing_scope",
     "dlc_blessing_catchup",
@@ -314,6 +317,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "collapsed": false,
    "options": [
     "dungeon_sweep",
+    "full_area_sweeps",
     "reroll_enemy_drops",
     "protect_missable_locations",
     "armor_bundles",
@@ -529,6 +533,23 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "essential": true
   },
   {
+   "key": "enable_tarnished_pack",
+   "class": "EnableTarnishedPack",
+   "display_name": "Enable Tarnished Pack",
+   "description": "Whether paid Tarnished Pack equipment may enter the randomized item pool. off (default):\nnone of its weapons, shields, or armor can be placed. on: the verified equipment roster is\navailable to the pool builder as honorary S-tier gear. This does not yet add the pack's field,\nmerchant, or invasion locations, nor its Spectral Steed attire unlocks.",
+   "kind": "toggle",
+   "base": "Toggle",
+   "default": false,
+   "choices": null,
+   "range": null,
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null,
+   "essential": true
+  },
+  {
    "key": "dlc_only",
    "class": "DLCOnly",
    "display_name": "DLC Only",
@@ -549,7 +570,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "key": "locked_abilities",
    "class": "LockedAbilities",
    "display_name": "Locked Abilities",
-   "description": "ABILITIES THE GAME DISABLES. Each named ability is turned off at the character's logical-action\nlayer, so the lock survives key/pad rebinds, covers keyboard and mouse, and never affects menus.\n\nValid names: jump, crouch, roll, r1, r2, l1, l2, heal. (r1/r2/l1/l2 are the attack inputs; locking\none also stops casting through it, since a staff or seal casts on the attack button. `heal` locks\nthe flask -- it heals nothing while locked -- via the No Flask SpEffect, not an action mask.)\nEmpty = nothing locked, the default.\n\n🛑 crouch is the one UNVERIFIED action: ER has no dedicated crouch action, so the client routes it\nto the stick-click (l3) as a first guess. If a playtest shows that is wrong, the fix is one line\nin er-logic, not here.\n\nAbility Lock Mode decides whether these stay off all seed (Static) or start off and are unlocked\nby items you find (Progressive). Env-overridable in test builds via ER_ABILITY_LOCK_TEST.",
+   "description": "ABILITIES THE GAME DISABLES. Each named ability is turned off at the character's logical-action\nlayer, so the lock survives key/pad rebinds, covers keyboard and mouse, and never affects menus.\n\nValid names: jump, crouch, roll, r1, r2, l1, l2, heal. (r1/r2/l1/l2 are the attack inputs; locking\none also stops casting through it, since a staff or seal casts on the attack button. `heal` locks\nthe flask -- it heals nothing while locked -- via the No Flask SpEffect, not an action mask.)\nEmpty = nothing locked, the default.\n\n🛑 crouch is the one UNVERIFIED action: ER has no dedicated crouch action, so the client routes it\nto the stick-click (l3) as a first guess. If a playtest shows that is wrong, the fix is one line\nin er-logic, not here.\n\nLocking ALL FOUR attack inputs (r1, r2, l1, l2) in Progressive mode leaves you unable to damage\nanything, and a great many checks are kill-gated -- so that seed forces one attack unlock\n(\"Unlock: R1\") into an early sphere, wherever in the multiworld it lands. Spells do not count as\nan attack for this: a staff or seal casts on an attack button, so a caster with all four locked\nis just as weaponless. Locking three or fewer forces nothing -- you still have an attack.\n\nAbility Lock Mode decides whether these start off and are unlocked by items you find\n(Progressive, the default) or stay off for the whole seed (Static, the opt-out).\nEnv-overridable in test builds via ER_ABILITY_LOCK_TEST.",
    "kind": "set",
    "base": "OptionSet",
    "default": [],
@@ -575,10 +596,10 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "key": "ability_lock_mode",
    "class": "AbilityLockMode",
    "display_name": "Ability Lock Mode",
-   "description": "HOW the Locked Abilities behave.\n\n``static`` -- they are off for the entire seed. No item, no check; a pure client restriction.\n\n``progressive`` -- they start off, and each locked ability becomes an \"Unlock: X\" item shuffled\ninto the multiworld. Find it (or receive it from another world) to get that ability back. The\nitems default to `progression` and are REQUIRED to finish (see Ability Unlocks Required) -- so\na partner holding your \"Unlock: Roll\" genuinely blocks your goal, which is the whole point of a\nmultiworld. Turn Ability Unlocks Required off to make them `useful` and never gate completion.\nNeeds a client that understands ability unlocks (declared via\nrequiresClientFeatures); older clients would leave the abilities locked, so they are told to\nupgrade rather than play it half-supported.\n\nNo effect when Locked Abilities is empty.",
+   "description": "HOW the Locked Abilities behave.\n\n``progressive`` (DEFAULT) -- they start off, and each locked ability becomes an \"Unlock: X\"\nitem shuffled into the multiworld. Find it (or receive it from another world) to get that\nability back. The items default to `progression` and are REQUIRED to finish (see Ability\nUnlocks Required) -- so a partner holding your \"Unlock: Roll\" genuinely blocks your goal, which\nis the whole point of a multiworld. Turn Ability Unlocks Required off to make them `useful` and\nnever gate completion. Needs a client that understands ability unlocks (declared via\nrequiresClientFeatures); older clients would leave the abilities locked, so they are told to\nupgrade rather than play it half-supported.\n\n``static`` (the opt-out) -- they are off for the entire seed. No item, no check; a pure client\nrestriction, and no client-feature demand.\n\nNo effect when Locked Abilities is empty (the default) -- this option only bites once you have\nnamed an ability to lock.",
    "kind": "choice",
    "base": "Choice",
-   "default": "static",
+   "default": "progressive",
    "choices": [
     {
      "name": "static",
@@ -725,7 +746,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "key": "dungeon_sweep",
    "class": "DungeonSweep",
    "display_name": "Dungeon Sweep",
-   "description": "Which bosses hand you their area's loot in a sweep when you kill them.\n\nnone -- no sweeps; every check is picked up where it lies.\nminidungeons -- catacombs, caves, tunnels and minor dungeons only (~510 checks).\nall -- those plus legacy dungeons and castles (~2614).\nbosses (default) -- those plus FIELD bosses, i.e. everything (~3876).\n\nThose are the BAKED pools. What a seed grants is that minus its Progression Surface cut below;\nat the default surface, ~3782 at the widest rung.\n\n🛑 UNTIL 2026-07-29 THESE THREE WERE THE SAME THING. The emit gated on `value != 0` and never\nfiltered by class, so minidungeons/all/bosses each granted the full 3197 -- the ladder in this\ndocstring described behaviour that had never been implemented, and the player guide and the\nv0.2.15 release notes repeated it. The rungs are real now.\n\nThe DEFAULT moved 'all' -> 'bosses' at the same time, and that is not a behaviour change: the\nfull set is what every non-none value already granted, so 'bosses' IS what shipped. Leaving the\ndefault at 'all' would have quietly dropped field sweeps (1213 checks, 38%) from every seed\nunder the banner of a bug fix.\n\nA sweep never hands you another boss's reward, a Remembrance, a Great Rune, a key item or a\nmerchant's stock: those are cut when the sweep is built and no option restores them.\n\nEverything else in the area is yours, INCLUDING the good stuff -- Golden Seeds, Sacred Tears,\nScadutree Fragments, Revered Spirit Ashes, Crystal Tears and the legendaries (2026-08-13; it was\nfiller-only before, +145 checks corpus-wide). The exception is the classes YOU put on the\nProgression Surface: those are where this seed places its Locks, so they are taken back out of\nthe sweep, per seed. At the default surface that means Golden Seeds, Sacred Tears, Scadutree\nFragments and Revered Ashes stay where they lie and the legendaries and Crystal Tears sweep;\nuntick a collectathon line on the surface and the sweep picks it up instead.\n\n🛑 ONE SWEEP MEMBER PER TRIGGER CAN NOW HOLD PROGRESSION, in a default seed (2026-08-13). The\ndefault Progression Surface includes `SweepSlot`, which nominates a single member of every sweep\nyou run as somewhere a key item may be placed -- so killing a boss can hand you one. That is the\nonly class the surface does NOT take back out of the sweep, and deliberately: taking it back\nwould delete the check it just nominated. Drop `SweepSlot` from progression_surface if you would\nrather a sweep never pay out progression; the cost is that at the default\n`confine_foreign_progression` another player's key items have only ~30 checks of yours to land\non, and most of them stop arriving (er-archipelago#631).\n\n🛑 With an EMPTY Progression Surface there is no confinement at all, so progression scatters\nwherever AP's fill puts it -- including onto ordinary sweep members, as it always could. The cut\ncan only act on a surface that says something.\n\nA group is only sent to a seed that can actually FIRE it (issue #445): the trigger boss's ARENA\nregion has to be kept too, not just the region its members live in. Six groups are fought\nsomewhere other than where their loot lies -- the Golden Hippopotamus hands over 104 Shadow Keep\nchecks from Scadu Altus ground -- and a seed that keeps one region without the other used to\nship a sweep whose boss the region lock would not let the player reach. Those groups are dropped\ninstead. The checks are unaffected: every member is an ordinary pickup in its own region, so what\nis lost is the convenience, not the loot.",
+   "description": "Which bosses hand you their area's loot in a sweep when you kill them.\n\nnone -- no sweeps; every check is picked up where it lies.\nminidungeons -- catacombs, caves, tunnels and minor dungeons only (~510 checks).\nall -- those plus legacy dungeons and castles (~2614).\nbosses (default) -- those plus FIELD bosses, i.e. everything (~3876).\n\nThose are the BAKED pools. What a seed grants is that minus its Progression Surface cut below;\nat the default surface, ~3782 at the widest rung.\n\n🛑 UNTIL 2026-07-29 THESE THREE WERE THE SAME THING. The emit gated on `value != 0` and never\nfiltered by class, so minidungeons/all/bosses each granted the full 3197 -- the ladder in this\ndocstring described behaviour that had never been implemented, and the player guide and the\nv0.2.15 release notes repeated it. The rungs are real now.\n\nThe DEFAULT moved 'all' -> 'bosses' at the same time, and that is not a behaviour change: the\nfull set is what every non-none value already granted, so 'bosses' IS what shipped. Leaving the\ndefault at 'all' would have quietly dropped field sweeps (1213 checks, 38%) from every seed\nunder the banner of a bug fix.\n\nA sweep never hands you another boss's reward, a Remembrance, a Great Rune, a key item or a\nmerchant's stock: those are cut when the sweep is built and no option restores them.\n\nEverything else in the area is yours, INCLUDING the good stuff -- Golden Seeds, Sacred Tears,\nScadutree Fragments, Revered Spirit Ashes, Crystal Tears and the legendaries (2026-08-13; it was\nfiller-only before, +145 checks corpus-wide). The exception is the classes YOU put on the\nProgression Surface: those are where this seed places its Locks, so they are taken back out of\nthe sweep, per seed. At the default surface that means Golden Seeds, Sacred Tears, Scadutree\nFragments and Revered Ashes stay where they lie and the legendaries and Crystal Tears sweep;\nuntick a collectathon line on the surface and the sweep picks it up instead.\n\n🛑 ONE SWEEP MEMBER PER TRIGGER CAN NOW HOLD PROGRESSION, in a default seed (2026-08-13). The\ndefault Progression Surface includes `SweepSlot`, which nominates a single member of every sweep\nyou run as somewhere a key item may be placed -- so killing a boss can hand you one. That is the\nonly class the surface does NOT take back out of the sweep, and deliberately: taking it back\nwould delete the check it just nominated. Drop `SweepSlot` from progression_surface if you would\nrather a sweep never pay out progression -- or see `full_area_sweeps` for the opposite ask,\nevery check in the area including the progression; the cost of dropping it is that at the default\n`confine_foreign_progression` another player's key items have only ~30 checks of yours to land\non, and most of them stop arriving (er-archipelago#631).\n\n🛑 With an EMPTY Progression Surface there is no confinement at all, so progression scatters\nwherever AP's fill puts it -- including onto ordinary sweep members, as it always could. The cut\ncan only act on a surface that says something.\n\nA group is only sent to a seed that can actually FIRE it (issue #445): the trigger boss's ARENA\nregion has to be kept too, not just the region its members live in. Six groups are fought\nsomewhere other than where their loot lies -- the Golden Hippopotamus hands over 104 Shadow Keep\nchecks from Scadu Altus ground -- and a seed that keeps one region without the other used to\nship a sweep whose boss the region lock would not let the player reach. Those groups are dropped\ninstead. The checks are unaffected: every member is an ordinary pickup in its own region, so what\nis lost is the convenience, not the loot.",
    "kind": "choice",
    "base": "Choice",
    "default": "bosses",
@@ -754,6 +775,23 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "group_collapsed": false,
    "special_values": null,
    "essential": true
+  },
+  {
+   "key": "full_area_sweeps",
+   "class": "FullAreaSweeps",
+   "display_name": "Full Area Sweeps",
+   "description": "Should a boss kill hand you EVERYTHING in its area, including the good stuff this seed is\nusing for progression?\n\noff (default) -- a sweep pays out the area's ordinary loot. The classes you put on the\nProgression Surface are taken back out of it, because those are exactly where this seed places\nits key items: at the default surface that is Golden Seeds, Sacred Tears, Scadutree Fragments\nand Revered Spirit Ashes, and you still walk to those yourself.\n\non -- nothing is taken back out. Every check the sweep holds is granted the moment the boss\ndies, progression included, so killing a boss can hand you a region Lock (or, at the default\n`confine_foreign_progression`, another player's item). That is the point of the option, not a\nside effect: it is what \"killing the boss gives me the area\" actually means. It cannot strand\nyou -- a sweep only ever grants checks in a region you kept and behind a boss you could reach,\nso it makes a reachable check arrive earlier and never makes an unreachable one required.\n\nWHAT IT DOES NOT DO, in any seed. This widens WHICH checks a sweep pays; it does not widen\nwhich bosses sweep (that is `dungeon_sweep`) and it does not lift the permanent floor:\n\n* another boss's reward, remembrance or Great Rune -- handing those over would delete the fight;\n* gate and quest KEY ITEMS;\n* merchant stock, which is bought at a counter rather than picked up off the ground.\n\nNor can it reach a check whose position was never recovered from the game data: those belong to\nno boss's area, so no boss kill can grant them. Requested by siffrin and bobler (#1033).\n\nMissable checks are unaffected by this option in either direction -- they have always been\nordinary sweep members (170 of the 289 are swept today), so a sweep already rescues most of\nthem and this changes nothing about which. `protect_missable_locations` is the option for that.\n\nCorpus size of the change: +113 member links at the default Progression Surface (4101 -> 4214),\nup to +215 for a seed that puts all six of the collectathon/rarity classes on its surface, and\nexactly zero for a seed with an empty surface -- an empty surface makes no claim, so there was\nnothing being taken back out to restore.",
+   "kind": "toggle",
+   "base": "Toggle",
+   "default": false,
+   "choices": null,
+   "range": null,
+   "valid_keys": null,
+   "casefold": false,
+   "group": null,
+   "group_collapsed": false,
+   "special_values": null,
+   "essential": false
   },
   {
    "key": "open_boss_doors",
@@ -2108,7 +2146,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "key": "traps",
    "class": "Traps",
    "display_name": "Traps",
-   "description": "Which traps may appear in your world. Empty (default) = no traps at all.\n\nA trap is an item that makes your run briefly worse. They are FILLER: a trap never holds\nprogression, and every trap in your pool replaces one junk item, so your seed does not grow.\n\n- **rune_thief** -- half your runes, gone.\n- **no_flask** -- your flask heals nothing for 20 seconds. You can still drink it; it just does\n  nothing, and the charge is spent.\n- **blackout** -- the screen fades out, stays dark for 2 seconds, then fades back in.\n- **runebear** -- a Runebear appears exactly where you are standing. Kill it and you keep the\n  runes.\n- **basilisk** -- THREE basilisks appear where you are standing. One is a joke; three is the\n  Death Blight mist, which kills outright. Killing you sends a DeathLink.\n\nTraps are sent to YOU by your own world like any other item, so in a multiworld somebody else\nmay be the one who finds them.\n\nFor any other enemy in the game, see `spawn_traps`.",
+   "description": "Which traps may appear in your world. Empty (default) = no traps at all.\n\nA trap is an item that makes your run briefly worse. They are FILLER: a trap never holds\nprogression, and every trap in your pool replaces one junk item, so your seed does not grow.\n\n- **rune_thief** -- half your runes, gone.\n- **no_flask** -- your flask heals nothing for 20 seconds. You can still drink it; it just does\n  nothing, and the charge is spent.\n- **blackout** -- the screen fades out, stays dark for 2 seconds, then fades back in.\n- **runebear** -- a Runebear appears exactly where you are standing. Kill it and you keep the\n  runes.\n- **basilisk** -- THREE basilisks appear where you are standing. One is a joke; three is the\n  Death Blight mist, which kills outright. Killing you sends a DeathLink.\n\nTraps are sent to YOU by your own world like any other item, so in a multiworld somebody else\nmay be the one who finds them.\n\nTHIS OPTION TAKES THESE WORDS AND NOTHING ELSE. For any other enemy in the game -- by name or by\ncharacter model id -- use `spawn_traps`, which is the other list in this section.",
    "kind": "set",
    "base": "OptionSet",
    "default": [],
@@ -2153,7 +2191,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "key": "spawn_traps",
    "class": "SpawnTraps",
    "display_name": "Spawn Traps",
-   "description": "Extra enemies to drop on your own head, named by character model id (e.g. `4150`).\n\nTHE ESCAPE HATCH. `traps` carries the enemies we curated and named; this takes any of the 390\nspawnable models in the game by raw id, for anyone who wants something specific standing on top\nof them. One appears where you are; the curated ones may come in numbers.\n\nEmpty by default, and inert unless `trap_count` is above zero. An id that is not spawnable is a\nyaml error rather than an item that silently never fires -- 26 models are excluded because they\nhave no AI row or no body (props like the Walking Mausoleum), and refusing them at generation is\nthe point.\n\nNaming the same enemy here and in `traps` is harmless: it is one item either way.",
+   "description": "Extra enemies to drop on your own head. Takes an ENEMY NAME or a character model id.\n\nTHE ESCAPE HATCH. `traps` carries the enemies we curated and named; this takes any of the 390\nspawnable models in the game, for anyone who wants something specific standing on top of them.\nOne appears where you are; the curated ones may come in numbers.\n\nBoth spellings work and mean the same thing, so write whichever you have::\n\n    spawn_traps: [Basilisk, Runebear]     # a name -- case does not matter\n    spawn_traps: [\"4150\", \"4630\"]         # the same two models, by id\n\nTHE NAMED MODELS (35 of the 390):\n\nAging Untouchable, Alexander Warrior Jar, Asimi Silver Tear, Basilisk, Blaidd the Half-Wolf,\nBoc the Seamster, Demi-Human Boc, Finger Reader Crone, Finger Reader Enia, Gatekeeper Gostoc,\nGurranq Beast Clergyman, Hornsent Grandam, Jar-Bairn, Latenna the Albinauric,\nMalenia (Phase 1), Melina, Merchant Kale, Miriel Pastor of Vows, Pidia Carian Servant,\nPrimeval Sorcerer Azur, Primeval Sorcerer Lusat, Ranni the Witch,\nRennala Queen of the Full Moon, Runebear, Smithing Master Hewg, Smithing Master Iji,\nSorceress Sellen, St. Trina, Tanith's Knight, The Noble Goldmask, The Two Fingers,\nZorayas the Scout. (Six of these carry a comma in the game -- `Alexander,\nWarrior Jar`. A comma separates values in yaml flow style and in the wizard box, so the\noffered spelling drops it; both spellings resolve.)\n\nTHE OTHER 355 HAVE NO NAME TO TAKE, and that is the game's doing rather than an omission here:\nElden Ring never writes an enemy's name on screen, so outside `NpcName.fmg.xml` -- 31 of these\nmodels -- there is no name in the data to use, and this project will not invent one. Those\nmodels stay reachable by id, which is what they always were.\n\nEmpty by default, and inert unless `trap_count` is above zero. A name or id that is not\nspawnable is a yaml ERROR naming its nearest matches, rather than an item that silently never\nfires -- 26 models are excluded because they have no AI row or no body (props like the Walking\nMausoleum), and refusing them at generation is the point.\n\nNaming the same enemy here and in `traps` is harmless: it is one item either way.\n\n🛑 THE ITEM IS STILL NAMED AFTER THE MODEL, not after what you typed: `Runebear` here mints\n`Trap: c4630 x1`, because the item name is a cross-repo contract the client parses and writing a\nname into the yaml must not move it. What you write is resolved to the model at generation and\ngoes no further -- which is the whole reason this cost no client release.",
    "kind": "set",
    "base": "OptionSet",
    "default": [],
@@ -2549,7 +2587,42 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     "7100",
     "8000",
     "8100",
-    "8110"
+    "8110",
+    "Aging Untouchable",
+    "Alexander Warrior Jar",
+    "Asimi Silver Tear",
+    "Basilisk",
+    "Blaidd the Half-Wolf",
+    "Boc the Seamster",
+    "Demi-Human Boc",
+    "Finger Reader Crone",
+    "Finger Reader Enia",
+    "Gatekeeper Gostoc",
+    "Gurranq Beast Clergyman",
+    "Hornsent Grandam",
+    "Jar-Bairn",
+    "Latenna the Albinauric",
+    "Malenia (Phase 1)",
+    "Melina",
+    "Merchant Kalé",
+    "Miriel Pastor of Vows",
+    "Pidia Carian Servant",
+    "Primeval Sorcerer Azur",
+    "Primeval Sorcerer Lusat",
+    "Ranni the Witch",
+    "Rennala Queen of the Full Moon",
+    "Runebear",
+    "Smithing Master Hewg",
+    "Smithing Master Iji",
+    "Sorceress Sellen",
+    "St. Trina",
+    "Tanith's Knight",
+    "The Noble Goldmask",
+    "The Two Fingers",
+    "Zorayas the Scout",
+    "aging_untouchable",
+    "basilisk",
+    "malenia"
    ],
    "casefold": false,
    "group": null,
@@ -3358,7 +3431,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
   "present_when": "any non-DLC region is eligible (i.e. not dlc_only)",
   "region": "Ashen Capital"
  },
- "hub_dlc_gated_checks": 36,
+ "hub_dlc_gated_checks": 0,
  "hub_region": "Roundtable Hold",
  "parent": {
   "Leyndell": "Altus",
@@ -3366,7 +3439,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
  },
  "regions": {
   "Abyssal": {
-   "checks": 19,
+   "checks": 24,
    "combos": {
     "Boss|MajorBoss|Remembrance": 1,
     "Fragment": 1,
@@ -3402,7 +3475,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Ainsel River": {
    "checks": 123,
@@ -3453,10 +3528,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Altus": {
-   "checks": 375,
+   "checks": 374,
    "combos": {
     "Basin|Boss|FieldBoss": 1,
     "Boss|FieldBoss": 8,
@@ -3512,7 +3589,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 136,
      "minidungeons": 81
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Ancient Ruins": {
    "checks": 60,
@@ -3561,7 +3640,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Ashen Capital": {
    "checks": 18,
@@ -3573,10 +3654,44 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "dlc": false,
    "parent": null,
    "rollable": false,
-   "sweep_slots": {},
-   "sweep_slots_by_class": {},
-   "sweep_slots_max": {},
-   "sweep_slots_max_by_class": {}
+   "sweep_slots": {
+    "all": 2,
+    "bosses": 2
+   },
+   "sweep_slots_by_class": {
+    "SweepSlot": {
+     "all": 2,
+     "bosses": 2
+    },
+    "SweepSlotMajor": {
+     "all": 1,
+     "bosses": 1
+    },
+    "SweepSlotMinor": {
+     "all": 1,
+     "bosses": 1
+    }
+   },
+   "sweep_slots_max": {
+    "all": 6,
+    "bosses": 6
+   },
+   "sweep_slots_max_by_class": {
+    "SweepSlot": {
+     "all": 6,
+     "bosses": 6
+    },
+    "SweepSlotMajor": {
+     "all": 3,
+     "bosses": 3
+    },
+    "SweepSlotMinor": {
+     "all": 3,
+     "bosses": 3
+    }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Belurat": {
    "checks": 93,
@@ -3616,10 +3731,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Caelid": {
-   "checks": 361,
+   "checks": 363,
    "combos": {
     "Basin": 1,
     "Basin|Boss|FieldBoss": 1,
@@ -3633,7 +3750,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     "Boss|MinorDungeonBoss|Seedtree": 1,
     "Church": 1,
     "KeyItem": 1,
-    "Legendary": 4,
+    "Legendary": 5,
     "Seedtree": 3,
     "Shop": 3,
     "Shop|ShopNonSpell": 22,
@@ -3664,13 +3781,13 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    },
    "sweep_slots_max": {
     "all": 55,
-    "bosses": 119,
+    "bosses": 118,
     "minidungeons": 55
    },
    "sweep_slots_max_by_class": {
     "SweepSlot": {
      "all": 55,
-     "bosses": 119,
+     "bosses": 118,
      "minidungeons": 55
     },
     "SweepSlotMajor": {
@@ -3678,16 +3795,20 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     },
     "SweepSlotMinor": {
      "all": 55,
-     "bosses": 115,
+     "bosses": 114,
      "minidungeons": 55
     }
+   },
+   "tarnished_pack_checks": 2,
+   "tarnished_pack_combos": {
+    "Legendary": 1
    }
   },
   "Cerulean": {
-   "checks": 100,
+   "checks": 105,
    "combos": {
     "Boss": 4,
-    "Boss|FieldBoss": 2,
+    "Boss|FieldBoss": 3,
     "Boss|Legendary": 1,
     "Boss|MajorBoss|Remembrance": 1,
     "Boss|MinorDungeonBoss": 1,
@@ -3698,14 +3819,14 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "parent": null,
    "rollable": true,
    "sweep_slots": {
-    "all": 5,
-    "bosses": 5,
+    "all": 6,
+    "bosses": 6,
     "minidungeons": 1
    },
    "sweep_slots_by_class": {
     "SweepSlot": {
-     "all": 5,
-     "bosses": 5,
+     "all": 6,
+     "bosses": 6,
      "minidungeons": 1
     },
     "SweepSlotMajor": {
@@ -3713,20 +3834,20 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 1
     },
     "SweepSlotMinor": {
-     "all": 4,
-     "bosses": 4,
+     "all": 5,
+     "bosses": 5,
      "minidungeons": 1
     }
    },
    "sweep_slots_max": {
-    "all": 40,
-    "bosses": 40,
+    "all": 48,
+    "bosses": 48,
     "minidungeons": 8
    },
    "sweep_slots_max_by_class": {
     "SweepSlot": {
-     "all": 40,
-     "bosses": 40,
+     "all": 48,
+     "bosses": 48,
      "minidungeons": 8
     },
     "SweepSlotMajor": {
@@ -3734,14 +3855,16 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 8
     },
     "SweepSlotMinor": {
-     "all": 32,
-     "bosses": 32,
+     "all": 40,
+     "bosses": 40,
      "minidungeons": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Consecrated Snowfield": {
-   "checks": 151,
+   "checks": 143,
    "combos": {
     "Boss|FieldBoss": 1,
     "Boss|Legendary|MinorDungeonBoss": 1,
@@ -3784,7 +3907,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 45,
      "minidungeons": 29
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Deeproot Depths": {
    "checks": 80,
@@ -3830,7 +3955,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 16,
      "bosses": 16
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Enir Ilim": {
    "checks": 107,
@@ -3878,7 +4005,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Ensis": {
    "checks": 41,
@@ -3917,7 +4046,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Farum Azula": {
    "checks": 105,
@@ -3957,19 +4088,21 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 24,
      "bosses": 24
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Gravesite": {
-   "checks": 224,
+   "checks": 222,
    "combos": {
     "Basin": 1,
     "Boss": 5,
-    "Boss|FieldBoss": 3,
+    "Boss|FieldBoss": 1,
     "Boss|Legendary|MajorBoss": 1,
     "Boss|Legendary|MinorDungeonBoss": 1,
     "Boss|MinorDungeonBoss": 3,
     "Fragment": 6,
-    "Legendary": 3,
+    "Legendary": 4,
     "Revered": 4,
     "Shop|ShopNonSpell": 11
    },
@@ -4009,7 +4142,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 44,
      "minidungeons": 28
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Haligtree": {
    "checks": 123,
@@ -4049,12 +4184,14 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 16,
      "bosses": 16
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Jagged Peak": {
-   "checks": 43,
+   "checks": 38,
    "combos": {
-    "Boss|FieldBoss": 1,
+    "Boss|FieldBoss": 2,
     "Boss|FieldBoss|MajorBoss": 1,
     "Fragment": 1,
     "KeyItem": 1
@@ -4063,41 +4200,43 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "parent": null,
    "rollable": true,
    "sweep_slots": {
-    "all": 2,
-    "bosses": 2
+    "all": 3,
+    "bosses": 3
    },
    "sweep_slots_by_class": {
     "SweepSlot": {
-     "all": 2,
-     "bosses": 2
+     "all": 3,
+     "bosses": 3
     },
     "SweepSlotMajor": {
      "all": 1,
      "bosses": 1
     },
     "SweepSlotMinor": {
-     "all": 1,
-     "bosses": 1
+     "all": 2,
+     "bosses": 2
     }
    },
    "sweep_slots_max": {
-    "all": 16,
-    "bosses": 16
+    "all": 22,
+    "bosses": 22
    },
    "sweep_slots_max_by_class": {
     "SweepSlot": {
-     "all": 16,
-     "bosses": 16
+     "all": 22,
+     "bosses": 22
     },
     "SweepSlotMajor": {
      "all": 8,
      "bosses": 8
     },
     "SweepSlotMinor": {
-     "all": 8,
-     "bosses": 8
+     "all": 14,
+     "bosses": 14
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Leyndell": {
    "checks": 251,
@@ -4146,10 +4285,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Limgrave": {
-   "checks": 328,
+   "checks": 329,
    "combos": {
     "Basin": 2,
     "Boss|FieldBoss": 5,
@@ -4200,10 +4341,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 88,
      "minidungeons": 28
     }
-   }
+   },
+   "tarnished_pack_checks": 1,
+   "tarnished_pack_combos": {}
   },
   "Liurnia": {
-   "checks": 612,
+   "checks": 615,
    "combos": {
     "Boss": 1,
     "Boss|FieldBoss": 15,
@@ -4214,7 +4357,7 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     "Boss|MinorDungeonBoss": 9,
     "Church": 3,
     "KeyItem": 2,
-    "Legendary": 6,
+    "Legendary": 7,
     "Seedtree": 3,
     "Shop": 18,
     "Shop|ShopNonSpell": 32,
@@ -4247,13 +4390,13 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    },
    "sweep_slots_max": {
     "all": 53,
-    "bosses": 156,
+    "bosses": 158,
     "minidungeons": 53
    },
    "sweep_slots_max_by_class": {
     "SweepSlot": {
      "all": 53,
-     "bosses": 156,
+     "bosses": 158,
      "minidungeons": 53
     },
     "SweepSlotMajor": {
@@ -4263,9 +4406,13 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
     },
     "SweepSlotMinor": {
      "all": 45,
-     "bosses": 140,
+     "bosses": 142,
      "minidungeons": 45
     }
+   },
+   "tarnished_pack_checks": 6,
+   "tarnished_pack_combos": {
+    "Legendary": 1
    }
   },
   "Mohgwyn": {
@@ -4306,10 +4453,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Mountaintops of the Giants": {
-   "checks": 191,
+   "checks": 200,
    "combos": {
     "Basin|Boss|FieldBoss": 1,
     "Boss|FieldBoss": 6,
@@ -4364,7 +4513,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 43,
      "minidungeons": 22
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Mt. Gelmir": {
    "checks": 243,
@@ -4426,14 +4577,16 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 53,
      "minidungeons": 21
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Rauh Base": {
-   "checks": 91,
+   "checks": 90,
    "combos": {
     "Boss|FieldBoss|MajorBoss": 1,
     "Boss|MinorDungeonBoss": 1,
-    "Legendary": 3
+    "Legendary": 2
    },
    "dlc": true,
    "parent": null,
@@ -4471,10 +4624,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 24,
      "minidungeons": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Raya Lucaria Academy": {
-   "checks": 105,
+   "checks": 110,
    "combos": {
     "Boss|GreatRune|MajorBoss": 1,
     "Boss|MajorBoss": 1,
@@ -4513,10 +4668,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 16,
      "bosses": 16
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Roundtable Hold": {
-   "checks": 237,
+   "checks": 102,
    "combos": {},
    "dlc": false,
    "parent": null,
@@ -4524,10 +4681,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "sweep_slots": {},
    "sweep_slots_by_class": {},
    "sweep_slots_max": {},
-   "sweep_slots_max_by_class": {}
+   "sweep_slots_max_by_class": {},
+   "tarnished_pack_checks": 1,
+   "tarnished_pack_combos": {}
   },
   "Scadu Altus": {
-   "checks": 324,
+   "checks": 322,
    "combos": {
     "Boss|FieldBoss": 4,
     "Boss|Fragment|MajorBoss": 1,
@@ -4544,14 +4703,14 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
    "parent": null,
    "rollable": true,
    "sweep_slots": {
-    "all": 6,
-    "bosses": 6,
+    "all": 7,
+    "bosses": 7,
     "minidungeons": 1
    },
    "sweep_slots_by_class": {
     "SweepSlot": {
-     "all": 6,
-     "bosses": 6,
+     "all": 7,
+     "bosses": 7,
      "minidungeons": 1
     },
     "SweepSlotMajor": {
@@ -4559,32 +4718,34 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 1
     },
     "SweepSlotMinor": {
-     "all": 5,
-     "bosses": 5,
+     "all": 6,
+     "bosses": 6,
      "minidungeons": 1
     }
    },
    "sweep_slots_max": {
-    "all": 44,
-    "bosses": 44,
+    "all": 48,
+    "bosses": 48,
     "minidungeons": 8
    },
    "sweep_slots_max_by_class": {
     "SweepSlot": {
-     "all": 44,
-     "bosses": 44,
+     "all": 48,
+     "bosses": 48,
      "minidungeons": 8
     },
     "SweepSlotMajor": {
-     "all": 4,
-     "bosses": 4
+     "all": 3,
+     "bosses": 3
     },
     "SweepSlotMinor": {
-     "all": 40,
-     "bosses": 40,
+     "all": 45,
+     "bosses": 45,
      "minidungeons": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Shadow Keep": {
    "checks": 118,
@@ -4635,7 +4796,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 18,
      "bosses": 18
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Siofra River": {
    "checks": 166,
@@ -4685,7 +4848,9 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 8,
      "bosses": 8
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Stormveil": {
    "checks": 140,
@@ -4726,10 +4891,12 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "all": 16,
      "bosses": 16
     }
-   }
+   },
+   "tarnished_pack_checks": 0,
+   "tarnished_pack_combos": {}
   },
   "Weeping": {
-   "checks": 152,
+   "checks": 156,
    "combos": {
     "Basin": 1,
     "Boss|FieldBoss": 2,
@@ -4782,12 +4949,14 @@ footer{color:#6f6753;font-size:12px;border-top:1px solid #3a342a;margin-top:20px
      "bosses": 50,
      "minidungeons": 26
     }
-   }
+   },
+   "tarnished_pack_checks": 4,
+   "tarnished_pack_combos": {}
   }
  },
  "schema": 2,
  "source": "greenfield/eldenring {data,location_tags,missable_locations,contract,region_spine}.py",
- "source_sha256": "4289561eda0dffbdeafc085d9df3837390a8b4434c7bf83a0c04d25de1e6ba69"
+ "source_sha256": "c58d8f2be01f137e6cd46f1971844ab8e458e1a8f6a8ad70c0b0eb0ce61ca71a"
 }
 </script>
 <div class="wrap">
@@ -5133,11 +5302,19 @@ const ERW = (() => {
      215. Defaulting to "bosses" is the shipped default, not a guess. Without this the SweepSlot box
      would read 0 -- next to a comment promising that 0 means "carrying nothing" -- for a class that
      is ON by default. */
-  function comboHits(region, sel, rung){
+  function comboHits(region, sel, rung, tarnishedPackOn){
     let n = 0;
     for (const combo in region.combos){
       const parts = combo.split("|");
       for (let i = 0; i < parts.length; i++) if (sel.has(parts[i])){ n += region.combos[combo]; break; }
+    }
+    if (!tarnishedPackOn){
+      for (const combo in (region.tarnished_pack_combos || {})){
+        const parts = combo.split("|");
+        for (let i = 0; i < parts.length; i++) if (sel.has(parts[i])){
+          n -= region.tarnished_pack_combos[combo]; break;
+        }
+      }
     }
     const sweepByClass = region.sweep_slots_by_class || {};
     if (sel.has("SweepSlot")){
@@ -5166,11 +5343,16 @@ const ERW = (() => {
     /* #913: Enia's DLC-gated shop rows leave a no-DLC seed, so the hub is smaller by the
        census's hub_dlc_gated_checks there. check_wizard_census_js proves this line matches the
        Python reference. */
-    const base = R[census.hub_region].checks + (finaleOn ? R[finaleName].checks : 0)
+    const tpOn = !!opts.enableTarnishedPack;
+    let base = R[census.hub_region].checks + (finaleOn ? R[finaleName].checks : 0)
                - ((!opts.dlcOnly && !opts.enableDlc) ? (census.hub_dlc_gated_checks || 0) : 0);
+    if (!tpOn){
+      base -= (R[census.hub_region].tarnished_pack_checks || 0);
+      if (finaleOn) base -= (R[finaleName].tarnished_pack_checks || 0);
+    }
     const rung = opts.dungeonSweep || "bosses";
-    const baseSurf = comboHits(R[census.hub_region], sel, rung)
-                   + (finaleOn ? comboHits(R[finaleName], sel, rung) : 0);
+    const baseSurf = comboHits(R[census.hub_region], sel, rung, tpOn)
+                   + (finaleOn ? comboHits(R[finaleName], sel, rung, tpOn) : 0);
 
     const n = opts.numRegions | 0;
     const whole = (n <= 0 || n >= eligible.length);
@@ -5198,7 +5380,10 @@ const ERW = (() => {
         }
       }
       let c = base, s = baseSurf;
-      for (const r of keptSet){ c += R[r].checks; s += comboHits(R[r], sel, rung); }
+      for (const r of keptSet){
+        c += R[r].checks - (tpOn ? 0 : (R[r].tarnished_pack_checks || 0));
+        s += comboHits(R[r], sel, rung, tpOn);
+      }
       checks.push(c); surf.push(s); kept.push(keptSet.size); forcedStart.push(addedStart.size);
     }
     const q = (a, p) => { a = a.slice().sort((x, y) => x - y); return a[Math.floor(p * (a.length - 1))]; };
@@ -5238,12 +5423,13 @@ const ERW = (() => {
     const R = census.regions;
     const dlcOnly = !!opts.dlcOnly;
     const enableDlc = opts.enableDlc !== false;
+    const tarnishedPackOn = opts.enableTarnishedPack === true;
     /* EVERY region in play, not just the rollable ones -- Roundtable Hold and Ashen Capital are
        rollable:false and still hold checks. dlc_only drops the base game, which takes the finale
        with it. */
     const inPlay = Object.keys(R).filter(n => dlcOnly ? R[n].dlc : (enableDlc || !R[n].dlc));
     const rung = opts.dungeonSweep || "bosses";
-    const hits = set => { let n = 0; for (const r of inPlay) n += comboHits(R[r], set, rung); return n; };
+    const hits = set => { let n = 0; for (const r of inPlay) n += comboHits(R[r], set, rung, tarnishedPackOn); return n; };
     const cur = new Set(selected || []);
     const total = hits(cur);
     const marginal = {};
@@ -5514,7 +5700,12 @@ if (typeof module !== "undefined") module.exports = ERW;
          REFUSED and NAMED here rather than written into the download for Archipelago to reject
          later. A control that accepts what the option rejects is worse than no control. */
       if (o.free_text){
-        const known = new Set(o.valid_keys);
+        /* Case-insensitive, and it commits the CANONICAL spelling. `spawn_traps` accepts enemy
+           NAMES as of 2026-08-26 (SwiftyTaco), and a control that took "basilisk" and wrote
+           "basilisk" into a yaml whose option spells it "Basilisk" would be reintroducing the
+           lookup this change exists to remove. The option itself resolves either casing; the
+           download should still carry the spelling the docs use. */
+        const known = new Map(o.valid_keys.map(k => [k.toLowerCase(), k]));
         const box = el("div", "freeset");
         const t = Object.assign(document.createElement("input"), {
           type: "text",
@@ -5537,9 +5728,24 @@ if (typeof module !== "undefined") module.exports = ERW;
           /* Split on anything that cannot be part of a key. People paste `4150, 4160`, `[4150
              4160]`, and a column out of a spreadsheet; all three mean the same thing, and guessing
              wrong costs the player a silently truncated list. */
-          const toks = t.value.split(/[^A-Za-z0-9_]+/).filter(Boolean);
-          const picked = new Set(toks.filter(x => known.has(x)));
-          rejected[o.key] = toks.filter(x => !known.has(x) && !picked.has(x));
+          /* SPLIT ON SEPARATORS, NOT ON EVERY NON-WORD CHARACTER. The old rule was
+             /[^A-Za-z0-9_]+/, which was right while every accepted value was a bare number and
+             is wrong now that "Blaidd the Half-Wolf" and "Malenia (Phase 1)" are accepted values:
+             it would shred each of them into four rejected tokens. Commas, semicolons, brackets
+             and newlines separate; spaces inside a token do not.
+             🛑 EXCEPT BETWEEN BARE NUMBERS, where a space IS a separator: people paste `4150 4630`
+             and a column out of a spreadsheet, and both meant two ids. A run of digits and spaces
+             is therefore split again -- which cannot touch a name, because no accepted name is
+             all digits. */
+          const toks = [];
+          t.value.split(/[,;\n\r\t\[\]]+/).forEach(part => {
+            const p = part.trim();
+            if (!p) return;
+            if (/^[0-9]+(\s+[0-9]+)*$/.test(p)) { p.split(/\s+/).forEach(x => toks.push(x)); }
+            else toks.push(p);
+          });
+          const picked = new Set(toks.map(x => known.get(x.toLowerCase())).filter(Boolean));
+          rejected[o.key] = toks.filter(x => !known.has(x.toLowerCase()));
           /* Committed in valid_keys order, exactly like the checkbox branches below: the order the
              player happened to type is presentation and must not reach the yaml. */
           commit(o.valid_keys.filter(x => picked.has(x)));
@@ -5599,6 +5805,7 @@ if (typeof module !== "undefined") module.exports = ERW;
           ? ERW.surfaceMarginals(census, vLive, {
               enableDlc: ERW.getVal(meta, state, "enable_dlc") !== false,
               dlcOnly: ERW.getVal(meta, state, "dlc_only") === true,
+              enableTarnishedPack: ERW.getVal(meta, state, "enable_tarnished_pack") === true,
               /* SweepSlot's worth is a function of dungeon_sweep -- 64 checks at `minidungeons`,
                  215 at `bosses`, 0 at `none`. Same reason the box is DLC-aware. */
               dungeonSweep: ERW.getVal(meta, state, "dungeon_sweep") })
@@ -5713,7 +5920,6 @@ if (typeof module !== "undefined") module.exports = ERW;
       const keys = (o.valid_keys && o.valid_keys.length)
         ? o.valid_keys : Object.keys(o.default || {});
       const cur = ERW.isPlainObject(v) ? v : {};
-      const total = keys.reduce((a, k) => a + (+cur[k] || 0), 0);
       /* Committed in valid_keys order, and ZERO WEIGHTS ARE OMITTED rather than written as 0 --
          absent and 0 are the same thing to a proportional split, and the shorter yaml is the one a
          player can read. All-zero therefore commits {}, which the option documents as an EMPTY
@@ -5727,27 +5933,61 @@ if (typeof module !== "undefined") module.exports = ERW;
         commit(next);
       };
       const grid = el("div", "dictgrid");
+      const note = el("div", "dnote", "");
+      const cells = [];
+      /* 🛑 THE SHARE COLUMN IS DERIVED, AND `refresh()` DOES NOT REBUILD CONTROLS -- the same root
+         as the toggle's stale "on"/"off" word, one column wider. The total and every percentage
+         used to be computed ONCE, when the row was built, and written into the spans as text that
+         nothing ever touched again: you typed juice 63 -> 20, the yaml moved, and all seventeen
+         percentages plus the footer's "a share of 103" sat there describing the recipe you had
+         BEFORE the edit. Reported by NovahDango on Discord 2026-08-25 -- "are the percentages on
+         the option builder supposed to change when i edit the numbers?" -- whose screenshot was
+         the shipped default's shares next to weights that were not the shipped default's.
+         The share is the number a player reasons about (the comment at the top of this file says
+         so), so a frozen one is the whole widget lying.
+
+         Repainted rather than rebuilt: swapping the grid node the way the key_meta grid does would
+         destroy the number input mid-keystroke and drop focus. `paintShares` re-reads the INPUTS,
+         not `state`, so the column tracks what is on screen -- including a value still being typed,
+         which is when a player is watching it -- and it is wired to `input` as well as `change` so
+         it answers per keystroke while the yaml still only moves on commit. */
+      const liveWeight = num => Math.max(0, Math.floor(+num.value || 0));
+      const paintShares = () => {
+        let sum = 0;
+        for (const c of cells) sum += liveWeight(c.num);
+        for (const c of cells){
+          const w = liveWeight(c.num);
+          c.row.className = "dweight" + (w ? "" : " dzero");
+          /* sum === 0 is the empty recipe, not a division: "--" rather than NaN%. */
+          c.share.textContent = sum ? (Math.round(1000 * w / sum) / 10) + "%" : "--";
+        }
+        note.textContent = sum
+          ? "Weights are RELATIVE -- the filler tail is split in proportion, so each is a share of "
+            + sum + ", not a percentage. They need not sum to anything."
+          : "Every weight is zero. An empty recipe is honoured and means no gear AND no upgrade "
+            + "economy -- generation warns rather than silently reverting to vanilla junk.";
+      };
       for (const k of keys){
         const w = +cur[k] || 0;
-        const row = el("label", "dweight" + (w ? "" : " dzero"));
+        const row = el("label", "dweight");
         const num = Object.assign(document.createElement("input"),
           {type:"number", min:0, step:1, value:w});
+        num.addEventListener("input", paintShares);
         num.addEventListener("change", () => {
-          const n = Math.max(0, Math.floor(+num.value || 0));
+          const n = liveWeight(num);
           num.value = n;
           commitWeights(k, n);
+          paintShares();
         });
-        row.append(el("span", "dk", k), num,
-                   el("span", "dshare", total ? (Math.round(1000 * w / total) / 10) + "%" : "--"));
+        const share = el("span", "dshare", "--");
+        row.append(el("span", "dk", k), num, share);
+        cells.push({ row, num, share });
         grid.append(row);
       }
       grid.style.flex = "1 1 100%";
       wrap.append(grid);
-      wrap.append(el("div", "dnote", total
-        ? "Weights are RELATIVE -- the filler tail is split in proportion, so each is a share of "
-          + total + ", not a percentage. They need not sum to anything."
-        : "Every weight is zero. An empty recipe is honoured and means no gear AND no upgrade "
-          + "economy -- generation warns rather than silently reverting to vanilla junk."));
+      wrap.append(note);
+      paintShares();
     } else {
       /* `text` is the only kind that reaches here now. tools/check_wizard_kind_controls.py fails
          CI if the dumper learns a kind this function does not name -- the gate that did not exist
@@ -6142,6 +6382,7 @@ if (typeof module !== "undefined") module.exports = ERW;
     const v = k => ERW.getVal(meta, state, k);
     const nr = v("num_regions"), dlcOn = !!v("enable_dlc"), only = !!v("dlc_only");
     const size = ERW.seedSize(census, { numRegions: nr, enableDlc: dlcOn, dlcOnly: only,
+                                        enableTarnishedPack: !!v("enable_tarnished_pack"),
                                         startRegionPool: v("start_region_pool") || [],
                                         surfaceClasses: v("progression_surface") || [],
                                         dungeonSweep: v("dungeon_sweep") });
@@ -6222,6 +6463,7 @@ if (typeof module !== "undefined") module.exports = ERW;
   function contributionCard(){
     const v = k => ERW.getVal(meta, state, k);
     const size = ERW.seedSize(census, { numRegions: v("num_regions"), enableDlc: !!v("enable_dlc"),
+                                        enableTarnishedPack: !!v("enable_tarnished_pack"),
                                         dlcOnly: !!v("dlc_only"),
                                         startRegionPool: v("start_region_pool") || [],
                                         surfaceClasses: v("progression_surface") || [],
@@ -6245,6 +6487,7 @@ if (typeof module !== "undefined") module.exports = ERW;
     if (!box) return;
     const v = k => ERW.getVal(meta, state, k);
     const size = ERW.seedSize(census, { numRegions: v("num_regions"), enableDlc: !!v("enable_dlc"),
+                                        enableTarnishedPack: !!v("enable_tarnished_pack"),
                                         dlcOnly: !!v("dlc_only"),
                                         startRegionPool: v("start_region_pool") || [],
                                         surfaceClasses: v("progression_surface") || [],
@@ -6534,6 +6777,7 @@ if (typeof module !== "undefined") module.exports = ERW;
     const v = k => ERW.getVal(meta, state, k);
     const size = ERW.seedSize(census, {
       numRegions: v("num_regions"), enableDlc: !!v("enable_dlc"), dlcOnly: !!v("dlc_only"),
+      enableTarnishedPack: !!v("enable_tarnished_pack"),
       startRegionPool: v("start_region_pool") || [],
       surfaceClasses: v("progression_surface") || [], dungeonSweep: v("dungeon_sweep")
     });

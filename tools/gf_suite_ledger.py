@@ -51,6 +51,10 @@ SENTINELS = re.compile(
 # The 12 names the workflow loop used to hand-type, in the same order. `--generators-list` is now
 # the only place they are written down.
 GENERATORS = [
+    # Canonical gen-input identity (#1010): reads tools/gen_manifest.py and the committed
+    # gen_inputs.db from the real repository, then builds alternate extraction contexts in temp.
+    # AP-free and deliberately skipped from the installed-world suite.
+    "gen_manifest_bundle",
     "sweep_anchor_coords",
     "region_selection",
     "check_browser",
@@ -117,6 +121,25 @@ GENERATORS = [
     # the world. AP-free, no artifacts, no client. It belongs in THIS job specifically: this is
     # the job whose byte-diff went red on PR #698 for an unregenerated page, so this is where the
     # gate that prevents the next one has to run.
+    # The PlayArea ITEM scan's geometry, on SYNTHETIC witchy-style MSB fixtures (issue #1025 /
+    # docs/PLAYAREA-ITEM-SCAN.md). It drives tools/datamine_item_play_regions.py over a temp
+    # artifacts tree it builds itself -- so it needs tools/, but NOT the real corpus, no AP, no
+    # client, and no network. It belongs in CI precisely because the tool it witnesses can only
+    # ever RUN on Alaric's box: without this suite the point-in-volume test, the LOD fold and the
+    # seam snap would be exercised nowhere, and a wrong answer there looks exactly like a right one.
+    "item_play_regions",
+    # The OVERWORLD TILE FRAME (2026-08-26): the centre-vs-corner ruling that decides which
+    # PlayRegionParam row governs a point, re-derived over the WHOLE committed grace population out
+    # of gen_inputs.db. It reads the bundle and tools/overworld_fold.py, so it is repo-only, but it
+    # needs no MSB corpus at all -- which is the point: the half of `--graces` that is pure table
+    # lookup now reds in CI instead of on Alaric's box, where it cost a refused calibration run.
+    "grace_tile_frame",
+    # The `--path <artifacts-root>` flag itself (tools/artifacts_root.py). Loads nine tools/ scripts
+    # by path and calls their `_set_artifacts_root` seams against a temp directory -- it needs
+    # tools/, but no corpus, no AP, no client and no network. It belongs here for the same reason
+    # as the suite above: these tools only ever RUN on Alaric's box, so "the flag parsed but the
+    # root did not move" would otherwise be witnessed by nothing.
+    "artifacts_path",
     "regen_all",
 ]
 
@@ -297,6 +320,19 @@ TESTS_JOB = {
                             "than skip. Same shape as isolated_merchant_region above. NOT "
                             "GENERATORS: it is a pytest suite, and its data half wants the "
                             "installed world",
+    "sweep_region_containment": "#1059's acceptance test. The invariant itself and the Jori/Leda "
+                                "cases read the installed boss_sweeps.py + data.py and never skip; "
+                                "the two that pin the SOURCE read boss_area_regions.tsv, "
+                                "region_groups.py and gen_data.py out of greenfield/ by walk-up, "
+                                "present in the tests job. It must not be DEV_BOX_ONLY: this is "
+                                "the gate that stops a cross-region sweep regressing, and a gate "
+                                "that only runs on the dev box is a gate that runs when it is too "
+                                "late",
+    "playarea_region_moves": "#1054's acceptance test, same shape as chapel_return_region. The "
+                             "mover/carve-out/ap-id halves read only the installed data.py and "
+                             "never skip; the two that pin the MECHANISM read region_overrides.tsv "
+                             "out of greenfield/ by the find_repo_root walk-up, which the tests "
+                             "job's checkout guarantees (--ap-dir sits inside it)",
 }
 
 # Suites where EVERY test skips in CI. The reason must name the missing input honestly -- these are

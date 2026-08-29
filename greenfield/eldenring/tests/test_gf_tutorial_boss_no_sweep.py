@@ -33,8 +33,8 @@ from worlds.eldenring.boss_sweeps import DUNGEON_SWEEPS, SWEEP_REGION  # noqa: E
 #     Stormveil Scion gets no defeat banner, so it is legitimately absent from a banner-derived
 #     corpus and never had a sweep to lose.
 GRAFTED_SCION = 10010800          # boss_healthbars: ('m10_01', 'm10_01', 'legacy', 'Grafted Scion')
-SCION_OWN_DROP_AP = 7773886       # Ornamental Straight Sword, f510030 -- a normal check, must SURVIVE
-GOSTOC_BELL_AP = 7773806           # f400051, MSB-placed in m10_00 while its source map was PENDING
+SCION_OWN_DROP_FLAG = 510030      # Ornamental Straight Sword, a normal check, must SURVIVE
+GOSTOC_BELL_AP = 7773705          # f400051; shifted -1 when dead f400020 left the pool (#1111)
 # (7773843 -> 7773808 on 2026-08-19, #330; 7773808 -> 7773821 same day, full-census regen: +10
 #  restored m21_02 Rada rows and +3 other insertions ahead of it. Flag-verified both times -- the
 #  stale pin was even OWNED by a Liurnia trigger, the exact wrong-check-same-id trap.)
@@ -77,11 +77,12 @@ def test_no_stormveil_sweep_is_keyed_on_a_non_stormveil_boss():
 def test_the_scions_own_drop_is_untouched():
     """The fix removes a sweep, not a check. The boss's own reward is a normal location."""
     from worlds.eldenring.data import LOCATIONS
-    every = {int(ap) for rows in LOCATIONS.values() for (_n, ap, _f) in rows}
-    assert SCION_OWN_DROP_AP in every, (
-        "the Grafted Scion's own drop (Ornamental Straight Sword, ap %d) vanished. The sweep "
-        "exclusion must not remove the boss's reward check -- that is a different mechanism."
-        % SCION_OWN_DROP_AP)
+    names = {name for rows in LOCATIONS.values() for (name, _ap, flag) in rows
+             if flag == SCION_OWN_DROP_FLAG}
+    assert any("Ornamental Straight Sword" in name for name in names), (
+        "the Grafted Scion's own drop (Ornamental Straight Sword, f%d) vanished. The sweep "
+        "exclusion must not remove the boss's reward check -- that is a different mechanism: %r"
+        % (SCION_OWN_DROP_FLAG, sorted(names)))
 
 
 def test_the_sweep_corpus_did_not_shrink():
@@ -509,8 +510,37 @@ def test_the_sweep_corpus_did_not_shrink():
     # partner triggers across 10 regions; measured by (trigger, flag): 148 removed / 149 added,
     # every re-dealt flag KEEPS a same-region owner (0 region-crossing re-owns), and no check
     # left the corpus.
-    assert total == 4101, (  # +73 (2026-08-20, #907): every admissible boss OWN drop joined its own trigger's sweep; +1 (2026-08-21, #940): the Four Belfries key joined the Royal Revenant
-        "sweep corpus is %d, expected 4101. If a sweep was legitimately added or removed, say WHY "
+    # 2026-08-26 (#1054/#1046, the rest of the PlayArea-scan adjudication): 4101 -> 4100, and the
+    # -1 is a DROP that is being recorded rather than re-baselined. Sixteen more scan-exact,
+    # ground-placed pickups take the region the scan says they physically stand in. Fifteen of them
+    # simply re-home to a trigger in their NEW region (measured pair-by-pair: 29 removed / 28 added
+    # / 28 re-owned, 15 of which cross a region boundary BY DESIGN -- the check moved region, so its
+    # granter moved with it). The sixteenth, 1035457030 (Strip of White Flesh, South Raya Lucaria
+    # Gate), moves Liurnia -> Raya Lucaria Academy and finds NO sweep host there, so it is left
+    # UNSWEPT. That is the containment design's stated honest outcome, not a lost check: the flag is
+    # still a check and still reachable, it is simply no longer paid by a boss kill.
+    # 2026-08-26 (#1066, J's Discord report): 4100 -> 4099, and again the -1 is a recorded DROP.
+    # Demi-Human Queen Marigga (2046400800) and the Jagged Peak Drake (2049410800) re-home to the
+    # regions they are FOUGHT in -- Cerulean and Jagged Peak, Alaric's in-game 2026-08-10 rulings,
+    # which now reach the sweep HOST derivation and not just the arena label. Their Gravesite
+    # members fall back into the Gravesite pool and are re-dealt to Gravesite's own hosts: measured
+    # in (trigger, flag) space, 65 removed / 64 added / 64 re-owned and ZERO region crossings.
+    # The one flag that leaves the corpus is 68750 (Mad Craftsman's Cookbook [1], near Divided
+    # Falls), and it leaves for a SEPARATE, scan-exact reason: it moves Gravesite -> Abyssal
+    # (item_play_regions volume 68600), and Abyssal's only sweep host is 28000800 on m28, which
+    # holds no m61 ground -- so there is no Abyssal trigger to deal it to. Same honest outcome as
+    # 1035457030 above: still a check, still reachable on foot, simply no longer paid by a kill.
+    # 2026-08-28 (#241): 4099 -> 4102. The 1.17 co-check audit adds the two real sibling checks on
+    # f14007850 (AP 7900286/7900287), hence +2 members with the same acquisition flag. The restored
+    # corroborated talk award f400020 adds the third member. Four existing flags merely re-own
+    # between the two tutorial triggers; none leaves its region.
+    # 2026-08-29 (#1096): 4102 -> 4105. The three verified Tarnished Pack field corpse pickups
+    # join their nearest same-region field-boss sweeps: Idus Sword -> Adan, Ritual Thrusting Shield
+    # -> Bell Bearing Hunter, and Reed Great Katana -> Putrid Avatar. No existing member moves.
+    # 2026-08-29 (#1111): 4105 -> 4104. The sole removal is dead ESD award f400020; its award
+    # branch requires f10009335, which has no setter/default in the complete input corpus.
+    assert total == 4104, (  # -1 (#1111): unreachable Neutralizing Boluses award
+        "sweep corpus is %d, expected 4104. If a sweep was legitimately added or removed, say WHY "
         "here -- do not just re-baseline the number." % total)
 
 
@@ -711,6 +741,60 @@ def test_the_sweep_OWNERSHIP_did_not_churn():
     # re-owned, and the removed and added sets are the SAME 41 flags -- every member kept its
     # owner, the owner's number changed. ZERO region crossings (both triggers stay Scadu Altus on
     # both sides). No divvy re-phase: a key rename cannot move `_ents[_j % len(_ents)]`.
-    assert (digest, n) == ("991951420a8525a4", 4101), (  # 2026-08-24 (#987): Dane's 2 triggers re-keyed entity id -> defeat flag; same 41 members, same regions
-        "sweep OWNERSHIP changed: (%s, %d), expected (991951420a8525a4, 4101). The total alone will "
+    # 2026-08-26 (#1059): 991951420a8525a4 -> bc5e71949dacb1c9, count UNCHANGED at 4101. A legacy
+    # boss's HOST region now ranks BOSS_AREA_REGION (the measured PlayRegionParam arena) above
+    # `_m61_boss_region` (the nearest-neighbour tile decode that also regions the CHECKS), so a
+    # boss can no longer inherit its members' region by construction. Measured in (trigger, flag)
+    # space: 34 removed / 34 added / 32 re-owned, ZERO flags lost an owner, and ZERO re-owns cross
+    # a sweep-region boundary (checked pair-by-pair against SWEEP_REGION on both sides).
+    # The motivating case is NovahDango's: five Abyssal checks read "also granted by Jori, Elder
+    # Inquisitor" while Jori is fought in Scadu Altus. They did not become unswept -- Jori became a
+    # Scadu Altus host and Midra, Lord of Frenzied Flame (Abyssal's own major) took the five. That
+    # is why the count holds at 4101: this is a re-HOST, not a drop. Applying the constraint at the
+    # host derivation rather than as a late member filter is what makes that true; a late filter
+    # would have stripped them after the divvy was dealt.
+    # 2026-08-26 (#1054/#1046): bc5e71949dacb1c9/4101 -> 5d5de2223034adf6/4100. Diffed the way the
+    # docstring demands, in (trigger, flag) space: REMOVED 29, ADDED 28, RE-OWNED 28. FIFTEEN of the
+    # re-owns change the sweep's REGION, and here that is the CORRECT reading rather than the
+    # reachability bug this gate normally hunts -- the CHECK moved region first (the scan
+    # adjudication above), and a member always re-homes to a trigger in the region it now lives in.
+    # Named, so a future regen can tell this shape from the bug: 2052407010/2052417010/2050437010/
+    # 2050437040 -> Abyssal, 2048417000/2048417010/2048417700/2049427000 -> Gravesite,
+    # 2046407040/2046407050/2046407060/2047417110 -> Cerulean, 1035457000/1035457100 -> Raya Lucaria
+    # Academy, 1047517000 -> Mountaintops. ZERO flags gained an owner; ONE lost one (1035457030,
+    # see the corpus pin above -- no Academy host exists for it).
+    # 🛑 The Mt. Gelmir trio (1039537040/50/60) is WITHHELD from this batch, not applied: it would
+    # take three of the twenty-three checks test_gf_unspawned_field_boss pins to Mt. Gelmir. See the
+    # note in gen_data.FLAG_REGION_OVERRIDE.
+    # 2026-08-26 (#1013, Enia vanilla): 5d5de2223034adf6 -> bd4c7e5d5b89c0f1, count UNCHANGED at
+    # 4100. Enia's hundred hub rows left the corpus (gen_data `enia_vanilla`), and NO Enia row was
+    # sweep-owned -- the OWNED FLAG SET is untouched at 3897, zero lost, zero gained. The whole churn
+    # is the divvy re-phase: the hub rows sat inside region round-robin pools, so removing 100
+    # members re-deals `_ents[_j % len(_ents)]` for every pool that held them. Measured in
+    # (trigger, flag) space against main: 195 removed / 195 added / 196 re-owned, and ZERO region
+    # crossings, checked pair-by-pair against SWEEP_REGION on both sides.
+    # 🛑 The same removal shifts every LATER ap id down by exactly 100, which is why GOSTOC_BELL_AP
+    # at the top of this file moves 7773806 -> 7773706. Re-read from the regenerated data.py, not
+    # arithmetic: f400051 is ap 7773706 there.
+    # 2026-08-26 (#1066): bd4c7e5d5b89c0f1/4100 -> b30cddc2f9d07205/4099. The #1059 shape a second
+    # time, on the two triggers J reported: a HUMAN ARENA RULING now outranks the tile decode in the
+    # sweep host derivation too, so Marigga hosts Cerulean's divvy and the Jagged Peak Drake hosts
+    # Jagged Peak's instead of both hosting Gravesite's. Diffed as the docstring demands, in
+    # (trigger, flag) space: REMOVED 65, ADDED 64, RE-OWNED 64, and ZERO region crossings -- which
+    # is the whole point of re-homing at the host derivation rather than filtering members later.
+    # ONE flag loses its owner and it is not one of theirs: 68750 moves Gravesite -> Abyssal on the
+    # scan (volume 68600) and Abyssal has no host that reaches m61 ground. See the corpus pin above.
+    # 2026-08-28 (#241): b30cddc2f9d07205/4099 -> 22eeed5e112d8b71/4102. Pairwise by
+    # (trigger, flag): removed 4, added 6. New flags are f400020 and f14007850 (the latter occurs
+    # twice because two independently randomized sibling checks share it); f400051, f400221,
+    # f10007082 and f10017900 only swap between tutorial triggers, with zero region crossings.
+    # 2026-08-29 (#1096): 22eeed5e112d8b71/4102 -> 7e13e38125507866/4105. Exactly three pairs
+    # were added: (1038410800, f1038417020), (1048410800, f1047427000), and
+    # (1051400800, f1050407000). Zero pairs were removed or re-owned.
+    # 2026-08-29 (#1111): 7e13e38125507866/4105 -> a1b74b51eb1f69da/4104. Pairwise against the
+    # freshly regenerated 125cb747 corpus: 188 removed / 187 added / 187 flags re-owned. Exactly
+    # one flag leaves the owned set (f400020), none enters it, and ZERO re-owns cross a region.
+    # The otherwise-large churn is the documented positional-id deletion / round-robin re-phase.
+    assert (digest, n) == ("a1b74b51eb1f69da", 4104), (  # #1111: -1 dead ESD award
+        "sweep OWNERSHIP changed: (%s, %d), expected (a1b74b51eb1f69da, 4104). The total alone will "
         "not tell you what moved -- diff by (trigger, flag), never by ap id." % (digest, n))

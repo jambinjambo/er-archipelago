@@ -101,11 +101,18 @@ leaves the entire DLC optional.
 
 ## Things that will confuse you the first time
 
-**Your Archipelago character turned up in your normal save.** Whether you get a
-separate save file depends on how you launched, not on the client. The shipped
-`me3` profile asks for one (`AP_me3.sl2`); other loaders do not -- including
-thefifthmatt's randomizer, which is a supported way to run us -- so on those the
-character is created in your ordinary Elden Ring save, next to your real ones.
+**The AP launch shows your vanilla characters.** This is expected the first
+time you use the shipped `me3` profile. To create `AP_me3.sl2`, me3 copies your
+existing `ER0000.sl2`, including its character list. The files are separate
+after that copy: a new character created through `ap.me3` is not visible when
+you launch vanilla Elden Ring. Seeing the old character names in both menus
+does not mean the two launches still share a save.
+
+Whether that separation happens depends on how you launched, not on the
+client. The shipped `me3` profile asks for `AP_me3.sl2`; other loaders do not --
+including thefifthmatt's randomizer, which is a supported way to run us -- so
+on those the AP character is created in your ordinary Elden Ring save. The Alt
+Saves DLL is not needed when launching the shipped `ap.me3` profile.
 
 **If that has happened, do not load your ordinary characters while connected.**
 The client cannot tell one of your existing characters from a new Archipelago
@@ -114,9 +121,10 @@ character is owed every item the room has sent you so far. Load a real character
 with the client connected and it may be granted that backlog. Play the
 Archipelago character, and only that one, in the modded launch.
 
-To check whether you are sharing: open Elden Ring **normally**, with no mods,
-and look at the character list. To separate them -- and for a save backup that
-makes the whole question recoverable -- see
+To check the separation, create a disposable character through `ap.me3`, quit
+cleanly, then open Elden Ring **normally**, with no mods. The disposable
+character should not appear there. To separate another launch path -- and for
+a save backup that makes the whole question recoverable -- see
 `ENEMY-AND-STARTING-CLASS-RANDOMIZATION.md` in the release folder.
 
 **You got kicked out of a region.** You wandered (or warped) into a region you
@@ -201,7 +209,10 @@ reporting; an item absent from the pool is the curation doing its job.
 
 **Where do I even stand with my checks?** Press **F6**. The in-game tracker
 lists checks by region with done/total counts, dims locked regions, and names
-the item that opens each one.
+the item that opens each one. A check labelled **`(region unconfirmed)`** has
+been placed under the best region estimate available, but its exact region has
+not yet been verified. It cannot hold a progression item, so an imperfect
+estimate there cannot strand your run.
 
 **The overlay is in the way.** Press **F5** to hide the client window, and
 again to bring it back (**F6** does the same for the tracker). Both are on the
@@ -276,6 +287,19 @@ run rather than tune it.
   other, that boss's sweep is left out rather than shipped as a payout you
   could never trigger. You collect its checks on foot instead; nothing is
   missing from the seed.
+- **`full_area_sweeps`** (off) -- "does killing a boss give me *every* item in
+  the area?" Off, the answer is "the ordinary loot, yes". The classes you put
+  on `progression_surface` are held back, because that is exactly where this
+  seed hid its key items -- at the default surface that is Golden Seeds, Sacred
+  Tears, Scadutree Fragments and Revered Spirit Ashes, and you walk to those
+  yourself. Turn it on and nothing is held back: the boss's area arrives whole,
+  progression included, so a boss kill can hand you a region Lock or another
+  player's item. It cannot strand you -- a sweep only ever grants checks in a
+  region you kept, behind a boss you could already reach, so it makes a
+  reachable check arrive *earlier* and never makes an unreachable one required.
+  Four things are never swept whatever this says: another boss's reward, a
+  remembrance or Great Rune, quest and gate key items, and merchant stock --
+  those are cut when the sweep is built, and no yaml puts them back.
 - **`reroll_enemy_drops` / `reroll_infinite_shop_stock`** (both on) -- reroll
   what farmable enemies drop and what unlimited-stock merchants sell. One-time
   drops -- the actual checks -- are untouched; this randomizes the repeatable

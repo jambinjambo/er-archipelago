@@ -24,6 +24,10 @@ the contract is at the bottom of this file.
    Existing unowned atlas mods are refused unless you deliberately pass `--replace-existing`,
    which backs them up for a later `--uninstall`. If automatic detection cannot find Matt's output,
    an interactive run asks for the folder; non-interactive use must pass `--destination`.
+   On Tarnished Edition 1.17 with Matt v0.11.4, also apply
+   `tarnished-torrent-rideparam-1.17.json` using the instructions in
+   `TARNISHED-TORRENT-REPAIR.md`; it restores the four missing Torrent rows without replacing
+   Matt's other parameter edits.
 4. (Optional) Put your server details in `apconfig.json`:
    ```json
    { "url": "archipelago.gg:12345", "slot": "YourName", "password": "" }
@@ -38,9 +42,13 @@ the contract is at the bottom of this file.
    ```
 
 Start a **new character**. Launched with `ap.me3` as above, the game writes to a separate save file
-(`AP_me3.sl2`), so your normal saves are not touched. That comes from the profile's `savefile` line
-rather than from the client, so it only holds for this launch path -- load the dll through another
-loader (matt's randomizer, say) and your Archipelago character goes into your ordinary save.
+(`AP_me3.sl2`). When that file does not exist, me3 creates it by copying your current `ER0000.sl2`,
+so your vanilla characters initially appear in the AP character list too. They are copies: after
+creation the files diverge, and a new AP character will not appear in a vanilla launch. Do not load
+a copied vanilla character while connected; create a new character for the seed. The separation
+comes from the profile's `savefile` line, needs no Alt Saves DLL, and only holds for this launch
+path -- load the dll through another loader (matt's randomizer, say) and your Archipelago character
+goes into your ordinary save.
 
 For a standalone ModEngine2 or randomizer output instead of me3, point the installer at that loose
 file root: `.\install-ap-flower.ps1 -Destination "<folder containing regulation.bin>"`. To remove
@@ -58,6 +66,8 @@ only files created by this installer, rerun it with the same destination and `-U
 | `install-ap-flower.ps1` | thin Windows launcher for the packaged-asset installer |
 | `install_ap_flower.py` | authenticated, transactional installer for Windows and Linux/Proton |
 | `flower-package/` | release-only manifest plus complete hi/low AP Flower overrides; may be absent from dev bundles |
+| `tarnished-torrent-rideparam-1.17.json` | four-row Smithbox delta restoring Tarnished Edition's Torrent variants after Matt v0.11.4 |
+| `TARNISHED-TORRENT-REPAIR.md` | guarded Smithbox import instructions for that delta |
 
 **Both JSON tables are derived from the game's own params -- game data, not seed data.** That is why
 one static copy works for every apworld and every seed. Keep them next to the DLL.

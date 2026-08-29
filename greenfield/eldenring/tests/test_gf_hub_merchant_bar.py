@@ -36,15 +36,22 @@ from ..features.progression_surface import (_HUB_MERCHANT_TAGS, _roundtable_merc
                                             allowed_ap_ids)
 from ..location_tags import (DEFAULTED_REGION_APS, ERDTREE_BURN_APS, LOCATION_TAGS,
                              SHOP_RELEASE_GATED_APS, SHOP_SLOT_PINS, SURFACE_EXCLUDE_APS)
+from ..tarnished_pack import TARNISHED_PACK_LOCATION_FLAGS
 
 # Every hub row carrying a merchant tag. #218 replaces the old number-anywhere-in-ESD heuristic with
 # exact AwardItemLot calls: two false Hub rows retire while one real Hub award enters, for a net -1.
-_PINNED_BAR = 183
-# Of those, the ones a `Shop`-selecting seed would put on the surface before this bar fires: 184 minus
-# the 58 already DEFAULTED (region guessed) minus the 21 EniaShop rows (EniaShop is itself a
-# contract.SURFACE_EXCLUDE_TAGS member, so has_class rejects them on tags alone) minus the 47 that
-# are also in SHOP_RELEASE_GATED_APS (barred unconditionally by allowed_ap_ids).
-_PINNED_ON_SURFACE = 58
+# 2026-08-24 (#1013): Enia's shop is VANILLA -- her 100 hub rows left the location pool entirely, so
+# the bar drops 183 -> 83. 2026-08-28 (#1097): 35 more hub rows were generator-derived rewrites of
+# curated starting/caster-kit shop blocks, not independent purchases. The block-level exclusion
+# removes exactly those false checks, leaving 48 genuine Roundtable merchant rows. #1096 adds one
+# optional Tarnished Pack merchant row to the static superset; it is absent from default seeds but
+# must still be barred when the ownership toggle admits it.
+_PINNED_BAR = 49
+# Of those, the ones a `Shop`-selecting seed would put on the surface before this bar fires: 83 minus
+# the 63 covered by the other bars (the DEFAULTED / ERDTREE_BURN / SURFACE_EXCLUDE /
+# SHOP_RELEASE_GATED union) = 20. Was 58 before #1013; the 38 that left were Enia's on-surface rows
+# (the rest of her 100 were already covered by the release-gate bar).
+_PINNED_ON_SURFACE = 20
 
 _HUB_APS = frozenset(ap for (_n, ap, _f) in LOCATIONS.get(HUB, ()))
 
@@ -83,12 +90,25 @@ class TestHubMerchantBar(unittest.TestCase):
                         "the bar reaches outside Roundtable Hold.")
 
     def test_hub_non_merchant_checks_are_left_alone(self):
-        """"...the hub's Golden Seed checks are left to the normal surface/defaulted logic." The hub
-        has exactly one Seedtree row and 54 untagged ones; none is a merchant row."""
+        """"...the hub's non-merchant checks are left to the normal surface/defaulted logic."
+
+        🛑 THE SUBJECT MOVED, so the assertion is stated over the CLASS instead of over one row.
+        Until 2026-08-26 the hub had exactly one Seedtree row and this test named it: f400220, the
+        Golden Seed. #445's ground audit re-filed it Stormveil -- the Hold was never a derivation
+        for it and its lot is placed on an m10_00 enemy (see gen_data.FLAG_REGION_OVERRIDE[400220])
+        -- so the hub has NO Seedtree row now and pinning one would be pinning a row that left.
+        The property was never about Seedtrees: it is that this bar touches merchant rows and
+        nothing else. That is what is asserted, over every non-merchant hub row, which is strictly
+        more than the one-row version ever covered.
+        """
         barred = _roundtable_merchant_aps()
-        seedtree = {ap for ap in _HUB_APS if "Seedtree" in LOCATION_TAGS.get(ap, ())}
-        self.assertTrue(seedtree, "no hub Seedtree row -- this test has lost its subject.")
-        self.assertFalse(seedtree & barred, "the bar swallowed the hub's Seedtree check(s).")
+        non_merchant = {ap for ap in _HUB_APS
+                        if not any(t in _HUB_MERCHANT_TAGS for t in LOCATION_TAGS.get(ap, ()))}
+        self.assertTrue(non_merchant,
+                        "no non-merchant hub row at all -- this test has lost its subject.")
+        self.assertFalse(non_merchant & barred,
+                         "the bar swallowed non-merchant hub check(s): %r"
+                         % sorted(non_merchant & barred))
 
     def test_chokepoint_drops_hub_merchants(self):
         """THE WITNESS. Pins the effect where fill reads it, not in the helper.
@@ -128,8 +148,13 @@ class HubMerchantLocationRule(WorldTestBase):
         barred = _roundtable_merchant_aps()
         self.assertTrue(barred, "test basis: the hub merchant set vanished")
         missing = barred - locations.keys()
-        self.assertFalse(missing, f"hub merchant AP ids are absent from the generated world: {missing}")
-        leaked = [locations[ap].name for ap in barred if locations[ap].item_rule(item)]
+        optional = {ap for (_n, ap, flag) in LOCATIONS.get(HUB, ())
+                    if int(flag) in TARNISHED_PACK_LOCATION_FLAGS}
+        self.assertEqual(missing, optional,
+                         "only default-off Tarnished Pack hub merchants may be absent")
+        active_barred = barred & locations.keys()
+        self.assertTrue(active_barred, "no active hub merchant remained to exercise the item rule")
+        leaked = [locations[ap].name for ap in active_barred if locations[ap].item_rule(item)]
         self.assertFalse(
             leaked,
             "hub merchant checks still accept required progression through general fill: %s"
@@ -146,6 +171,22 @@ class HubMerchantLocationRule(WorldTestBase):
             refused,
             "the hub-only location bar swallowed wandering merchants in real regions: %s"
             % refused[:5])
+
+
+class TarnishedHubMerchantLocationRule(WorldTestBase):
+    """The optional Roundtable row joins the same permanent progression bar when enabled."""
+    game = "Elden Ring"
+    options = {"num_regions": 0, "enable_tarnished_pack": True}
+
+    def test_optional_hub_merchant_rejects_advancement(self):
+        item = Item("required progression probe", ItemClassification.progression, None, self.player)
+        locations = {loc.address: loc for loc in self.multiworld.get_locations(self.player)}
+        optional = {ap for (_n, ap, flag) in LOCATIONS.get(HUB, ())
+                    if int(flag) in TARNISHED_PACK_LOCATION_FLAGS}
+        self.assertTrue(optional, "the static corpus has no Tarnished Pack hub merchant")
+        self.assertTrue(optional <= locations.keys(), "enabled pack omitted its hub merchant")
+        leaked = [locations[ap].name for ap in optional if locations[ap].item_rule(item)]
+        self.assertFalse(leaked, "optional hub merchant accepted required progression: %s" % leaked)
 
 
 if __name__ == "__main__":

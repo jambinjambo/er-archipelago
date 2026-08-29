@@ -1,44 +1,124 @@
-"""tarnished_pack.py -- pool exclusion for the Elden Ring Tarnished Pack (2026-08-28).
+"""Patch 1.17 (Tarnished Pack) item-pool catalog and ownership boundary.
 
-WHY THIS EXISTS
----------------
-The Tarnished Pack adds 2 starting classes, 4 armor sets, and 3 Torrent skins as an ENTITLEMENT
-unlock. Placing a pack item for a player who does not own the pack is unwinnable in exactly the way
-a DLC item is unwinnable in a base-only seed. #241's ruling is to exclude the new items from the
-pool ENTIRELY -- there is no `enable_tarnished_pack` option yet -- so this exclusion is
-UNCONDITIONAL, unlike the DLC exclusion which only fires when `enable_dlc` is off.
+The 2026-08-28 param diff established 31 new rows. The shipped English FMGs do not name them, so
+the 26 player-equipment names below are joined to IDs only where independent acquisition evidence
+settles the mapping: starting loadouts, field/shop lots, or invasion co-awards. Two NPC-only weapon
+bases and three Spectral Steed unlock goods deliberately remain outside the item pool.
 
-THE ONE PATCH-DAY STEP (2026-08-28)
------------------------------------
-The new items' catalog NAMES do not exist until the regulation ships. On patch day, AFTER the fresh
-Windows param dump + regen (#241), paste the new armor (and any new goods) catalog names -- exactly
-as they appear in `ITEM_CATALOG` post-regen -- into `TARNISHED_PACK_ITEM_NAMES` below. No other
-wiring is required: `core` publishes this set into `gf_dlc_excluded`, which every pool-augmentation
-path already reads (filler_budget, pool_builder, presence_floor, progressive, finale, scadu_supply,
-filler_foreign, ...). The starting CLASSES are `CharaInitParam` loadouts, not catalog items, so they
-do not enter the item pool and need nothing here; the Torrent skins are cosmetic and likewise not
-catalog items. Only the ARMOR (and any new GOODS) can be drawn as juice/filler -- those are what
-this set names.
+The equipment is available only when the explicit ownership option is enabled. Non-owner grant/use
+behaviour remains unproven, so default-off is the safety boundary rather than a hopeful runtime
+grant. ``gen_data.py`` adds this roster to the generated catalog and gives it honorary S tier.
 
-    HAND-MAINTAINED, NOT GENERATED. This module survives regen; do NOT move these names into the
-    generated item_ids.py (regen would overwrite them). Names must match ITEM_CATALOG exactly.
-
-Kept AP-free on purpose (no BaseClasses/Options import), so the decision is host-testable without the
-AP env -- the same "separate the decision from the I/O" split the rest of the package uses.
+Source: clean pre-1.17/current ``gen_inputs.db`` param-table diff recorded on #1096. Weapon rows
+are collapsed through ``originEquipWep`` so reinforcement variants count as one base item.
 """
 
-# Empty until 2026-08-28. See the module docstring for the single patch-day step. A NON-empty set
-# here before patch day would silently drop real items from the pool, so a test pins it empty.
-TARNISHED_PACK_ITEM_NAMES: "frozenset[str]" = frozenset()
+from typing import Mapping
 
 
-def pool_excluded_names(dlc_on: bool, dlc_item_names) -> "frozenset[str]":
-    """The catalog NAMES no pool-augmentation path may inject, resolved once so every consumer reads
-    the same decision (core publishes it as ``gf_dlc_excluded``).
+# Raw param row IDs added by Patch 1.17. Keep the categories separate: the same raw integer can
+# legally occur in more than one game item table, while FullID's high nibble disambiguates them.
+TARNISHED_PACK_WEAPON_IDS = frozenset({
+    3_560_000,
+    3_910_000,
+    8_530_000,
+    13_510_000,
+    13_900_000,
+    31_540_000,
+    62_520_000,
+    64_530_000,
+    66_530_000,
+    67_530_000,
+})
 
-    DLC items are excluded only when DLC is OFF; Tarnished Pack items are excluded UNCONDITIONALLY
-    (#241 -- no owner-entitlement option exists yet). Reads ``TARNISHED_PACK_ITEM_NAMES`` at call
-    time, so a patch-day edit to that set takes effect with no other change.
+TARNISHED_PACK_ARMOR_IDS = frozenset({
+    5_340_000, 5_340_100, 5_340_200, 5_340_300,
+    5_350_000, 5_350_100, 5_350_200, 5_350_300, 5_351_100,
+    5_360_000, 5_360_100, 5_360_200, 5_360_300, 5_361_000,
+    5_370_000, 5_370_100, 5_370_200, 5_370_300,
+})
+
+TARNISHED_PACK_GOODS_IDS = frozenset({2_009_600, 2_009_610, 2_009_620})
+
+# Player-receivable equipment only. Sources: the verified parameter/MSB census on #1096 plus live
+# menu witnesses; public post-release acquisition guides independently corroborate the display
+# names and routes. 3_910_000 and 13_900_000 are invasion-NPC weapon bases, not separate rewards.
+TARNISHED_PACK_EQUIPMENT = {
+    "Leontiel's Greatsword": 3_560_000,
+    "Hefty Scimitar": 8_530_000,
+    "Golden Order Flail": 13_510_000,
+    "Silver Grooved Shield": 31_540_000,
+    "Ritual Thrusting Shield": 62_520_000,
+    "Reverse-Bladed Sword": 64_530_000,
+    "Reed Great Katana": 66_530_000,
+    "Idus Sword": 67_530_000,
+    "Broken Gold Mask": 0x1000_0000 | 5_340_000,
+    "Gold Tattoo (Chest)": 0x1000_0000 | 5_340_100,
+    "Gold Tattoo (Arm)": 0x1000_0000 | 5_340_200,
+    "Gold Tattoo (Leg)": 0x1000_0000 | 5_340_300,
+    "Silver Grooved Helm": 0x1000_0000 | 5_350_000,
+    "Silver Grooved Armor": 0x1000_0000 | 5_350_100,
+    "Silver Grooved Gauntlets": 0x1000_0000 | 5_350_200,
+    "Silver Grooved Greaves": 0x1000_0000 | 5_350_300,
+    "Silver Grooved Armor (Altered)": 0x1000_0000 | 5_351_100,
+    "Leontiel's Hat": 0x1000_0000 | 5_360_000,
+    "Leontiel's Armor": 0x1000_0000 | 5_360_100,
+    "Leontiel's Leather Gloves": 0x1000_0000 | 5_360_200,
+    "Leontiel's Boots": 0x1000_0000 | 5_360_300,
+    "Leontiel's Hat (Altered)": 0x1000_0000 | 5_361_000,
+    "Steel Helm": 0x1000_0000 | 5_370_000,
+    "Steel Armor": 0x1000_0000 | 5_370_100,
+    "Steel Gauntlets": 0x1000_0000 | 5_370_200,
+    "Steel Greaves": 0x1000_0000 | 5_370_300,
+}
+
+# Typed raw-row lookup for artifact datamines. Patch 1.17's normal English item FMGs do not carry
+# these paid-pack labels, so tools which derive shops/lots must use the same verified name join as
+# the generated item catalog rather than silently emitting blank rows. Types follow ShopLineupParam
+# (0 weapon, 1 protector); ItemLotParam uses 2 weapon / 3 protector and is translated by its caller.
+TARNISHED_PACK_PARAM_NAMES = {
+    (0 if full_id < 0x1000_0000 else 1,
+     full_id if full_id < 0x1000_0000 else full_id & 0x0fff_ffff): name
+    for name, full_id in TARNISHED_PACK_EQUIPMENT.items()
+}
+
+# One-shot acquisition flags admitted by the location half of the ownership option. The safe
+# slices are the eleven limited-stock merchant rows plus three ordinary, persistent corpse
+# pickups whose lot, asset, map position, and nearest grace were independently joined from the
+# live Patch 1.17 params and MSBs on #1096. These are flags (the
+# third tuple field in LOCATIONS), so the seed-level filter covers region creation, pool accounting,
+# slot data, and reconnect behavior at the same chokepoint.
+TARNISHED_PACK_LOCATION_ORDER = (
+    150680, 160660, 160670, 160680, 160690,
+    170090, 170100, 170110, 170120, 170130,
+    280960,
+    1_038_417_020, 1_047_427_000, 1_050_407_000,
+)
+TARNISHED_PACK_LOCATION_FLAGS = frozenset(TARNISHED_PACK_LOCATION_ORDER)
+
+# FullID category tags match ItemId::category in the client and the generated ITEM_CATALOG:
+# weapons=0x0..., armor=0x1..., goods=0x4....
+TARNISHED_PACK_FULL_IDS = frozenset(
+    TARNISHED_PACK_WEAPON_IDS
+    | {0x1000_0000 | row_id for row_id in TARNISHED_PACK_ARMOR_IDS}
+    | {0x4000_0000 | row_id for row_id in TARNISHED_PACK_GOODS_IDS}
+)
+
+
+def tarnished_pack_names(item_catalog: Mapping[str, int]) -> "frozenset[str]":
+    """Resolve every currently named Patch 1.17 item from the generated item catalog."""
+    return frozenset(
+        name for name, full_id in item_catalog.items() if full_id in TARNISHED_PACK_FULL_IDS)
+
+
+def pool_excluded_names(
+        dlc_on: bool, dlc_item_names, item_catalog: Mapping[str, int],
+        tarnished_pack_on: bool = False) -> "frozenset[str]":
+    """Return names no pool-augmentation path may inject.
+
+    DLC items retain their existing option-dependent behaviour. Tarnished Pack equipment is
+    admitted only when its explicit ownership toggle is on (#1096).
     """
     dlc = frozenset() if dlc_on else frozenset(dlc_item_names)
-    return dlc | TARNISHED_PACK_ITEM_NAMES
+    tarnished = frozenset() if tarnished_pack_on else tarnished_pack_names(item_catalog)
+    return dlc | tarnished

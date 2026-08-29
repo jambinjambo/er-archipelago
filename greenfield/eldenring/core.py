@@ -318,6 +318,14 @@ class EnableDLC(DefaultOnToggle):
     display_name = "Enable DLC"
 
 
+class EnableTarnishedPack(Toggle):
+    """Whether paid Tarnished Pack equipment may enter the randomized item pool. off (default):
+    none of its weapons, shields, or armor can be placed. on: the verified equipment roster is
+    available to the pool builder as honorary S-tier gear. This does not yet add the pack's field,
+    merchant, or invasion locations, nor its Spectral Steed attire unlocks."""
+    display_name = "Enable Tarnished Pack"
+
+
 class DLCOnly(Toggle):
     """off (default): normal -- base game (and DLC when Enable DLC is on) are all in play. on: ONLY
     the Shadow of the Erdtree DLC regions are eligible; every base-game region is sealed. Implies
@@ -337,7 +345,9 @@ _CORE_OPTION_FIELDS = [("num_regions", NumRegions), ("num_regions_order", NumReg
                        ("item_shuffle", ItemShuffle), ("goal", Goal),
                        ("ending_condition", EndingCondition),
                        ("goal_great_runes", GreatRunesRequired),
-                       ("enable_dlc", EnableDLC), ("dlc_only", DLCOnly)]
+                       ("enable_dlc", EnableDLC),
+                       ("enable_tarnished_pack", EnableTarnishedPack),
+                       ("dlc_only", DLCOnly)]
 # v0.2 option-matrix slim: FROZEN_OPTIONS are no longer yaml-settable -- they are the BEHAVIOUR
 # (see defaults.py). Their classes stay declared in the features (so the slot_data / options-echo
 # keys keep being emitted and the client contract is unchanged); they are just filtered out of the
@@ -494,7 +504,7 @@ _OPTION_GROUPS = [
         "goal_great_runes", "leyndell_runes_required", "region_grace_unlock",
         "grace_attunement", "grace_attunement_anchor", "goal_region_unlock_policy"]),
     ("DLC & Blessings", [
-        "enable_dlc", "dlc_only", "scadutree_blessing_scope", "dlc_blessing_catchup",
+        "enable_dlc", "enable_tarnished_pack", "dlc_only", "scadutree_blessing_scope", "dlc_blessing_catchup",
         "global_scadutree_blessing"]),
     ("Difficulty & Scaling", [
         "enemy_scaling", "minimum_enemy_difficulty", "maximum_enemy_difficulty",
@@ -508,7 +518,7 @@ _OPTION_GROUPS = [
         "graded_progression",
         "coop_difficulty", "traps", "spawn_traps", "trap_count"]),
     ("Checks & Item Pool", [
-        "dungeon_sweep", "reroll_enemy_drops",
+        "dungeon_sweep", "full_area_sweeps", "reroll_enemy_drops",
         "protect_missable_locations", "armor_bundles",
         # vanilla_pool sits directly before curated_filler because it OVERRIDES it (#618): the
         # wizard renders a group in this order, and a player reading the recipe first would edit
@@ -594,7 +604,7 @@ _ESSENTIAL_OPTIONS = frozenset({
     # front-page yes/no whose regions_completed spelling is the deep cut)
     "num_regions", "goal", "ending_condition", "goal_great_runes", "goal_region_unlock_policy",
     # DLC & Blessings -- the ownership toggle alone; dlc_only is the More tier (Alaric 2026-08-20)
-    "enable_dlc",
+    "enable_dlc", "enable_tarnished_pack",
     # Difficulty & Scaling -- the headline toggle and the flavor decision; the dials stay under
     # More behind the easy/standard/hard quick-picks the wizard draws
     "enemy_scaling", "traps",
@@ -667,6 +677,12 @@ class GreenfieldEldenRingWorld(World):
         stayed in the pool -- the bell test's count-neutrality caught 1003 items over 967 locations
         (AzoTax, 2026-08-20)."""
         rows = LOCATIONS.get(region_name, [])
+        # Patch 1.17 paid-pack checks are as ownership-sensitive as their items. Filter them at this
+        # same count-neutral chokepoint (not only during region creation), otherwise option-off
+        # seeds would still mint their pool items or publish their flags in slot data.
+        if not getattr(self, "gf_tarnished_pack_on", False):
+            from .tarnished_pack import TARNISHED_PACK_LOCATION_FLAGS as _tplf
+            rows = [t for t in rows if int(t[2]) not in _tplf]
         # #994: drop every merchant-slot check (SHOP_ROW_FLAGS scope, ~562 rows) so no item -- yours
         # or a foreign player's -- is ever gated behind a purchase. Filtered here so region build,
         # pool, count and slot_data all agree the rows are gone; keep_out_of_shops / no_runes_in_shops
@@ -832,13 +848,17 @@ class GreenfieldEldenRingWorld(World):
         self.gf_vanilla_start_off = (
             _vp.apply_vanilla_start(self) if _vp.is_on(self) else [])
         self.gf_eligible: List[str] = self._eligible_regions()
-        # DLC-off seeds must not receive DLC items as juice/filler; Tarnished Pack items (#241)
-        # must never be placed at all. pool_excluded_names publishes BOTH as one exclusion set here
+        # DLC-off seeds must not receive DLC items as juice/filler; Tarnished Pack items (#1096)
+        # require their separate default-off ownership toggle. pool_excluded_names publishes both
         # so every pool-augmentation feature reads the same resolved decision. (The attribute keeps
-        # its `gf_dlc_excluded` name -- every consumer already reads it -- but it now also carries
-        # the unconditional Tarnished-Pack names from tarnished_pack.TARNISHED_PACK_ITEM_NAMES.)
+        # its `gf_dlc_excluded` name -- every consumer already reads it -- but it also carries the
+        # option-dependent Tarnished-Pack names resolved from their verified FullIDs.)
         self.gf_dlc_on: bool = self._dlc_on()
-        self.gf_dlc_excluded = pool_excluded_names(self.gf_dlc_on, DLC_ITEM_NAMES)
+        self.gf_tarnished_pack_on = bool(
+            getattr(self.options, "enable_tarnished_pack", None)
+            and self.options.enable_tarnished_pack.value)
+        self.gf_dlc_excluded = pool_excluded_names(
+            self.gf_dlc_on, DLC_ITEM_NAMES, ITEM_CATALOG, self.gf_tarnished_pack_on)
         # natural_progression is the INVERSE of num_regions (the whole eligible map is in play, gated
         # by real vanilla keys), so it forces the full eligible pool -- num_regions is ignored here.
         # vanilla_placement also forces the full eligible pool: it lets the BASE GAME's doors do

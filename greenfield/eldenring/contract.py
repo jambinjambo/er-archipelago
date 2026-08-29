@@ -541,7 +541,7 @@ def runtime_sweep_skips():
     This is deliberately NARROWER than :func:`sweep_slot_skips`. An unnamed trigger or a trigger
     whose arena has not been audited is unsafe as a REQUIRED progression host, but may still be a
     working convenience sweep. Only a positive fireability ruling belongs here and disappears from
-    seed slot data, the client tracker, boss-key gates, and the generated ``also granted by`` text.
+    seed slot data, the client tracker, boss-key gates, and the generated ``may be sweep-granted by`` text.
 
     Return a copy so callers cannot mutate the contract's ruling for the rest of generation.
     """
@@ -1592,10 +1592,30 @@ def to_rust():
     L.append("")
     L.append(_RUST_VALIDATE)
     L.append(_hdr_version)
+    L.append(_RUST_TESTS)
     return "\n".join(L) + "\n"
 
 
 _RUST_VALIDATE = r'''fn is_int(v: &Value) -> bool { v.is_i64() || v.is_u64() }
+
+fn nested_grant_ok(e: &Value) -> bool {
+    let Some(o) = e.as_object() else { return false };
+    if o.len() == 1 && o.get("noop").is_some_and(|v| v.as_bool() == Some(true)) {
+        return true;
+    }
+
+    let flags = o.get("flags").and_then(|v| v.as_array());
+    let flags_ok = flags.is_some_and(|v| v.iter().all(is_int));
+    let goods = o.get("goods");
+    match goods {
+        Some(goods) => {
+            flags_ok && is_int(goods) && o.get("consumed").is_some_and(Value::is_boolean)
+        }
+        None => {
+            flags.is_some_and(|v| !v.is_empty()) && !o.contains_key("consumed")
+        }
+    }
+}
 
 fn shape_ok(shape: Shape, v: &Value) -> bool {
     match shape {
@@ -1619,11 +1639,7 @@ fn shape_ok(shape: Shape, v: &Value) -> bool {
         Shape::Number => v.is_number(),
         Shape::Str => v.is_string(),
         Shape::NestedGrants => v.as_object().is_some_and(|o| {
-            o.values().all(|l| l.as_array().is_some_and(|l| l.iter().all(|e| {
-                e.get("goods").is_some_and(is_int)
-                    && e.get("flags").and_then(|f| f.as_array())
-                        .is_some_and(|f| f.iter().all(is_int))
-            })))
+            o.values().all(|l| l.as_array().is_some_and(|l| l.iter().all(nested_grant_ok)))
         }),
         Shape::FlaskLadder => v.as_array().is_some_and(|a| {
             a.iter().all(|e| e.get("charges").is_some_and(is_int)
@@ -1663,6 +1679,35 @@ pub fn validate(sd: &Value) -> Vec<String> {
 }'''
 
 
+_RUST_TESTS = r'''#[cfg(test)]
+mod nested_grants_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn valid(v: Value) -> bool { shape_ok(Shape::NestedGrants, &v) }
+
+    #[test]
+    fn accepts_every_wire_shape_the_world_emits() {
+        assert!(valid(json!({"Flask": [{"noop": true}]})));
+        assert!(valid(json!({"Bell": [{"flags": [280080]}]})));
+        assert!(valid(json!({"Flask": [{"goods": 10020, "flags": [], "consumed": true}]})));
+        assert!(valid(json!({"Bell": [{"goods": 8101, "flags": [280080], "consumed": false}]})));
+    }
+
+    #[test]
+    fn rejects_partial_or_ambiguous_effect_rungs() {
+        assert!(!valid(json!({"Flask": [{"goods": 10020, "flags": []}]})),
+                "goods must explicitly say whether they are consumed");
+        assert!(!valid(json!({"Bell": [{"flags": []}]})),
+                "an empty flags-only rung has no effect");
+        assert!(!valid(json!({"Bell": [{"flags": [280080], "consumed": false}]})),
+                "consumed is meaningless without goods");
+        assert!(!valid(json!({"Flask": [{"noop": true, "flags": []}]})),
+                "noop is an exact one-field sentinel");
+    }
+}'''
+
+
 
 # ---- VERSION HANDSHAKE -----------------------------------------------------------------------------
 # CONTRACT_HASH is derived FROM the contract, not maintained beside it: any key added/removed/reshaped
@@ -1670,7 +1715,7 @@ pub fn validate(sd: &Value) -> Vec<String> {
 # forget; a derived one cannot go stale. (Same doctrine as the gen-input stamp.)
 import hashlib as _hashlib
 
-APWORLD_VERSION = "0.5.1"
+APWORLD_VERSION = "0.5.3"
 
 def _contract_hash() -> str:
     _mat = "\n".join(

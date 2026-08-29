@@ -35,6 +35,13 @@ HUB="Roundtable Hold"
 # in gen-greenfield.ps1). Fallback = empty so gen_data still runs standalone (Boss tag simply empty).
 import importlib.util as _ilu
 try:
+    _tpspec = _ilu.spec_from_file_location(
+        "_tarnished_pack", os.path.join(HERE, "eldenring", "tarnished_pack.py"))
+    _tpmod = _ilu.module_from_spec(_tpspec); _tpspec.loader.exec_module(_tpmod)
+    _TARNISHED_PACK_EQUIPMENT = dict(_tpmod.TARNISHED_PACK_EQUIPMENT)
+except Exception as _e:
+    raise SystemExit("gen_data: Tarnished Pack catalog unavailable: %r" % (_e,))
+try:
     _bspec = _ilu.spec_from_file_location("_boss_drops", os.path.join(HERE, "eldenring", "boss_drops.py"))
     _bmod = _ilu.module_from_spec(_bspec); _bspec.loader.exec_module(_bmod)
     _BOSS_DROP_FLAGS = frozenset(_bmod.BOSS_DROP_FLAGS)
@@ -478,10 +485,114 @@ try:
             if len(_p) == 3 and _p[0].isdigit():
                 # NOTE: _REGION_MERGES is applied later (it is defined below this load); the fold
                 # for this table happens right after the merge map exists.
-                BOSS_AREA_REGION[int(_p[0])] = _p[2]
+                #
+                # 🛑 THE `region` COLUMN IS RE-FOLDED, NOT TRUSTED (2026-08-26, the #1059 audit).
+                # This file is AUTO-GENERATED and its third column is a SNAPSHOT of what
+                # PLAY_REGION_GROUPS said the day it was emitted. region_groups.py is the single
+                # source for "bucket -> region" and it MOVES: the Ashen Capital split took 11050
+                # out of Leyndell, the #202 ruling took 34100 into Stormveil, and the 2026-08-20
+                # Sewer merge deleted the region name "Sewer" outright. Six of the 120 rows here
+                # were still carrying the pre-move answers, and two of them named a region that no
+                # longer exists -- which is how a boss's ARENA region silently disagreed with its
+                # own members and produced 17 of the 22 "cross-region" sweep links in that audit.
+                # Re-folding the BUCKET through the live table makes this file a measurement of
+                # geometry (which is what the datamine actually knows) and leaves the naming to the
+                # one place that owns it. A stale copy of a table that moves is not evidence.
+                _bar_buckets = [int(_b) for _b in _p[1].split(";") if _b.strip().isdigit()]
+                _bar_owners = {_KICK_BUCKET_OWNER.get(str(_b)) for _b in _bar_buckets} - {None}
+                if len(_bar_owners) == 1:
+                    BOSS_AREA_REGION[int(_p[0])] = _bar_owners.pop()
+                elif len(_bar_owners) > 1:
+                    raise SystemExit(
+                        "gen_data: boss_area_regions row %s spans buckets owned by more than one "
+                        "region (%s) -- a boss is fought in ONE region, so this is a spine bug, not "
+                        "something to average" % (_p[0], sorted(_bar_owners)))
+                else:
+                    raise SystemExit(
+                        "gen_data: boss_area_regions row %s names bucket(s) %s that "
+                        "PLAY_REGION_GROUPS does not own. Add the bucket to region_groups.py or "
+                        "re-emit the table; do NOT fall back to the stale region column."
+                        % (_p[0], _p[1]))
 except OSError as _e:
     print(f"[gen_data] boss_area_regions.tsv unavailable ({_e!r}); boss-arena region corrections OFF "
           f"(run tools/datamine_boss_area_regions.py --emit)")
+
+# ---- the HUMAN half of the same question (boss_arena_rulings.tsv) -----------------------------
+# PlayRegionParam only ties a boss-area row to a DEFEAT flag for some bosses, so BOSS_AREA_REGION is a
+# lower bound BY CONSTRUCTION -- 106 of 218 triggers had no row. But the answer already existed:
+# Alaric ruled the PLACE 76 of 83 bosses stand in, in boss_region_worksheet.tsv's arena_region column
+# (2026-08-10, commit 41e8fe7 -- "arena_region IS the ruling column"), and boss_arena_rulings.tsv
+# unions hand rows on top of that expand. Until #445 nothing read it for THIS question: --expand
+# consumed those rulings only to re-region ambiguous CHECKS (boss_verdict_tiles.tsv), which is a
+# different question -- #523 is precisely the case where "which region owns its checks" and "where is
+# it fought" disagree.
+#
+# 🛑 RANKED BELOW MEASURED EVIDENCE, exactly like boss_verdict_tiles: a ruling fills an ABSENT and can
+# never overrule a PlayRegionParam row. A wrong ruling costs an unaudited trigger, never a measured one.
+#
+# 🛑 MOVED HERE 2026-08-26 (#1066), for the same reason _ARENA_REGION_CURATED was moved here by
+# #1059. This table used to be loaded down in the sweep section, AFTER the legacy host derivation
+# (`_lreg`) had already run -- so a ruling could only relabel SWEEP_ARENA_REGION while the members
+# stayed dealt from the tile-decode region, which is precisely the arena/members split the #1059
+# containment invariant forbids. Loading it beside the measured table lets ONE answer feed both the
+# host derivation and the arena label, so a ruling RE-HOMES the boss instead of tearing it in half.
+# J's report (Discord 2026-08-26) is the motivating case: Demi-Human Queen Marigga (2046400800) and
+# the Jagged Peak Drake (2049410800) hosted GRAVESITE divvy slices while being fought on Cerulean
+# Coast and Jagged Peak ground respectively, so a Gravesite-only seed promised payouts behind a
+# fight the kick-watch ejects the player from.
+_BOSS_ARENA_RULING = {}
+_bar_path = os.path.join(HERE, "boss_arena_rulings.tsv")
+if os.path.isfile(_bar_path):
+    with open(_bar_path, encoding="utf-8") as _rfh:
+        for _rl in _rfh:
+            if _rl[:1] == "#" or _rl.startswith("boss_entity"):
+                continue
+            _rp = _rl.rstrip("\n").split("\t")
+            if len(_rp) >= 3 and _rp[0].isdigit() and _rp[2]:
+                _BOSS_ARENA_RULING[int(_rp[0])] = _rp[2]
+    _bad_a = sorted({_r for _r in _BOSS_ARENA_RULING.values()
+                     if _r not in REGION_GROUPS and _r != _RG_HUB})
+    if _bad_a:
+        raise SystemExit(
+            "gen_data: boss_arena_rulings.tsv names region(s) %r that do not exist. A ruling must "
+            "resolve to a real region -- add the in-game place name to PLACE_TO_REGION in "
+            "tools/build_boss_region_worksheet.py rather than writing a phantom region here."
+            % _bad_a)
+
+# ---- CURATED arena-region rulings that BEAT the measured row ----------------------------------
+# Human-owned exception to the measurement above. MOVED HERE 2026-08-26 (#1059) from the sweep
+# section: BOSS_AREA_REGION is now what decides a legacy boss's HOST region (`_lreg`), so a ruling
+# applied after the sweeps were built would move the arena label without moving the members, and
+# re-open the very arena/members split the #1059 invariant closes. Applied at the source, one
+# answer feeds both.
+#
+#   10000850 Margit, the Fell Omen -- MEASURED arena is Limgrave (bucket 61010, the Stormhill
+#   cliff), and Alaric ruled 2026-08-17 (#523): "Margit belongs to Stormveil; the game data is
+#   decisive, superseding the earlier 'Margit is outside' call on #202." So Margit hosts
+#   Stormveil's sweep and his members are Stormveil's -- consistent in both directions, which is
+#   what the invariant asks for. The KICKWARP ground is untouched: PLAY_REGION_GROUPS keeps
+#   buckets 61010 (his arena) and 61001 (Castleward Tunnel mouth + Stormhill Shack) in Limgrave,
+#   so the fight and the death-recovery route back into it stay reachable before Stormveil opens.
+_ARENA_REGION_CURATED = {
+    10000850: "Stormveil",
+}
+# 🛑 IT DOES NOT WRITE INTO BOSS_AREA_REGION, and that is the whole care in this block.
+# BOSS_AREA_REGION also feeds `region_of` for a boss's own REWARD check (the boss-drop branch), so
+# folding a SWEEP ruling into it would silently re-region Margit's drop out of Limgrave -- which
+# takes Limgrave's last MajorBoss check with it and makes strict progression_surface infeasible
+# there. The ruling is about which region's pool this boss HOSTS, not about where his reward is
+# found. Kept as its own table and consulted only by the sweep host derivation and
+# SWEEP_ARENA_REGION.
+for _t, _reg in _ARENA_REGION_CURATED.items():
+    if _reg not in REGION_GROUPS and _reg != _RG_HUB:
+        raise SystemExit(
+            "gen_data: arena-region override %d -> %r names a region that does not exist" % (_t, _reg))
+    # The redundancy guard compares against the MEASURED row -- it still deletes itself the day the
+    # datamine agrees, exactly as it did in its old home.
+    if BOSS_AREA_REGION.get(_t) == _reg:
+        raise SystemExit(
+            "gen_data: arena-region override %d -> %r is REDUNDANT; the measured arena region now "
+            "agrees, so delete the override" % (_t, _reg))
 
 # region_map.csv's region-column LABEL -> region. Keys are the pipeline's raw labels (verbatim);
 # values are region_groups.py region names. UN-COLLAPSED 2026-07-12 (SPEC-region-spine-v2.md):
@@ -1201,7 +1312,9 @@ ROW_MAP_REGION_FIX = {
 # CO_CHECK_FLAGS below -- the primary row keeps its scanned name, the sibling gets a registry ap_id,
 # BOTH items are pooled, nothing is deleted). Keep the table for any future genuinely-wrong NAME on a
 # single-lot row; never re-add a shared-flag rename here.
-ROW_ITEM_NAME_FIX = {}
+ROW_ITEM_NAME_FIX = {
+    400163: "Nagakiba with Ash of War: Piercing Fang",
+}
 for _rowfix in _ALLROWS:
     try:
         _ff = int(_rowfix["flag"])
@@ -1451,6 +1564,12 @@ _GREAT_RUNE_TOWER_DUPES = frozenset({191, 192, 193, 194, 195, 196})
 # could strand a progression item on it. You always have Torrent now, so the check earns nothing.
 # Excluded as a start-grant non-check, same class as 60000 (Flask). (Alaric 2026-07-11.)
 _MISC_NON_CHECK = frozenset({60000, 60100, 60210, 590000, 550200, 550250})  # 60000 = Flask of Crimson Tears: the core healing flask (tutorial grant) whose flag fires in m10_00 Stormveil EMEVD -> mis-pinned to Stormveil AND surfaced as a phantom check (in-game 2026-07-10); same class as 60210 Wizened Finger. (The 60020 Flask of Wondrous Physick @ Third Church is a REAL treasure -> kept.) 590000 = empty-item Stormveil check; 60210 Wizened Finger; 550200/550250 = "About ..." tutorial-message popups (not loot, same class as 9100-9125)
+# 400020 = Neutralizing Boluses, lot 100200. The only award site in the complete 2026-08-29
+# ESD/EMEVD corpus is t304001000_x43. Its caller x40 requires f10009335, but that flag has no
+# setter or default anywhere in the ESD, EMEVD, or parameter inputs (the x40 read is its sole
+# occurrence). The branch is therefore dead in shipped game data; leaving its lot-param row as a
+# check creates an unobtainable Stormveil location. Keep the vanilla row, but do not randomize it.
+_UNUSED_ESD_AWARDS = frozenset({400020})
 # ---- THE FINALE (2026-07-14; supersedes the 2026-07-08 "ashen dead" blanket) ---------------------
 # The old _ASHEN_DEAD_FLAGS blanket called the post-Erdtree-burn content "unreachable in a
 # region-lock game". That was a CONDITIONAL truth wearing a blanket exclusion: the Ashen Capital is
@@ -1711,9 +1830,11 @@ def _capital_derive():
         raise SystemExit(f"FATAL: capital: world-burn flag {_world_burn} has only "
                          f"{_readers[_world_burn]!r} reader map(s) -- the 2026-08-06 scan found 5 "
                          f"(m11_00, m11_10, m12_03, m35_00, m60_42_32). A shrunken scan is a bad scan.")
-    # COUNT PIN (2026-07-14 artifacts): 4 purchase checks release on the burn flag -- Enia's
-    # Maliketh armor set, rows 101516-101519 (stock 250160/250170/250180/250190, checks
-    # 7770500-7770503). A different number = the inputs or the predicate changed; answer WHICH
+    # COUNT PIN (2026-07-14 artifacts): 4 purchase rows release on the burn flag -- Enia's
+    # Maliketh armor set, rows 101516-101519 (stock 250160/250170/250180/250190). Row-based, not
+    # check-based: Enia's shop is vanilla since 2026-08-24 (world#1013), and the re-key is what
+    # keeps her vanilla Maliketh armor releasing on schedule while the reconciler toggles 9116.
+    # A different number = the inputs or the predicate changed; answer WHICH
     # before re-pinning (CONTRIBUTING: rebaselining unexplained launders a regression).
     if len(_rows) != 4:
         raise SystemExit(f"FATAL: capital release-row drift: {len(_rows)} rows "
@@ -1942,9 +2063,55 @@ _WORLDLESS_SINGLES = frozenset({
     1047557040, 1052557040, 2046407001, 2046407002, 2046407003, 2046407004, 2047447901, 2048467701,
     2049437610, 2049437901, 2049437902, 2049437911, 2049437912, 2050457510,
 })
+# ---- ENIA IS VANILLA (Alaric, 2026-08-24, world#1013) ---------------------------------------------
+# Finger Reader Enia's shop is EXCLUDED FROM RANDOMIZATION -- none of her rows is a check. This
+# restores the rule 8c53e955 ("remove enia from big ticket") kept only half of: that took her rows
+# off big-ticket but left them in the pool. Her stock is the worst case of the gap
+# SHOP_RELEASE_GATED_APS only mitigates: all 49 block-1015 armor rows release on remembrance-boss
+# ceremony flags, and her 1019xx trades render only while the player HOLDS the remembrance, so her
+# menu is empty at start while AP logic filed her ~100 checks in the always-open hub and the
+# spoiler read them as sphere-1 ("i can't buy any items from Enia... the spoiler log says I should
+# be able to buy things from her from the very beginning" -- 570N3F157, Discord 2026-08-24).
+# Vanilla is the honest fix: no checks, no slot_data, no client rewrite, no spoiler lie. The
+# capital reconciler's capitalReleaseRows re-key (rows 101516-101519, 9116 -> 118) STAYS: it is
+# row-based, not check-based, and her vanilla Maliketh armor still needs its release to survive
+# the reconciler's 9116 toggling. Her Talisman Pouch (f60500, an m11_10 EMEVD reward, not a shop
+# row) is untouched.
+# DERIVED, never hand-listed: her rows are merchant_shops.tsv's "Finger Reader Enia" entries,
+# joined to stock flags through shop_rows.tsv (flag 290100 rides along -- Mohgwyn's Sacred Spear
+# is her trade row 101910 wherever region_map mis-files it). Both tsvs are declared inputs
+# (require_complete_inputs has already run), so an empty result means the derivation broke, not
+# that she has no stock: FATAL, per rule 2 (empty result = failure).
+def _enia_shop_flags():
+    """Stock flags of every ShopLineupParam row Finger Reader Enia opens."""
+    _enia_rows = set()
+    with open(os.path.join(HERE, "merchant_shops.tsv"), encoding="utf-8-sig") as _fh:
+        for _ln in _fh:
+            if _ln.startswith("#"):
+                continue
+            _p = _ln.rstrip("\n").split("\t")
+            if len(_p) >= 4 and _p[0].isdigit() and _p[3].strip() == "Finger Reader Enia":
+                _enia_rows.add(_p[0])
+    _out = set()
+    with open(os.path.join(HERE, "shop_rows.tsv"), encoding="utf-8-sig") as _fh:
+        for _ln in _fh:
+            if _ln.startswith("#"):
+                continue
+            _p = _ln.rstrip("\n").split("\t")
+            if len(_p) > 5 and _p[0] in _enia_rows and _p[5].strip().isdigit():
+                _out.add(int(_p[5].strip()))
+    return _out
+
+_ENIA_SHOP_FLAGS = frozenset(_enia_shop_flags())
+if not _ENIA_SHOP_FLAGS:
+    raise SystemExit("FATAL: Enia shop-flag derivation came back empty -- merchant_shops.tsv or "
+                     "shop_rows.tsv changed shape. Her rows must stay vanilla; do not rebaseline "
+                     "this away (world#1013).")
+print(f"enia: {len(_ENIA_SHOP_FLAGS)} stock flag(s) excluded from randomization -- her shop is vanilla")
 EXCLUDE_FLAGS = (frozenset({400280}) | _GREAT_RUNE_TOWER_DUPES | _MISC_NON_CHECK
                 | _RECOVER_PHANTOM_DUPES | _UNREACHABLE_DEAD | _UNPLACEABLE_DLC_COOKBOOKS
-                | _SHEET_DROPS | _RADA_WORLDLESS | _WORLDLESS_SINGLES)
+                | _SHEET_DROPS | _RADA_WORLDLESS | _WORLDLESS_SINGLES | _ENIA_SHOP_FLAGS
+                | _UNUSED_ESD_AWARDS)
 # Per-flag progression_surface exclusion (Alaric, 2026-07-17): checks that CARRY a surface tag but must
 # NOT host this world's progression (kept as ordinary checks; barred like DEFAULTED_REGION_APS). Emitted
 # as SURFACE_EXCLUDE_APS into location_tags.py, unioned into features/progression_surface barred set.
@@ -2244,6 +2411,13 @@ def _named_item_ids():
 NAMED_ITEM_IDS = _named_item_ids()
 if NAMED_ITEM_IDS is None:
     print("[gen_data] WARNING: item name FMGs absent -- item-existence guard DISABLED")
+else:
+    # The paid Patch 1.17 rows exist in EquipParam and are independently named in the verified
+    # Tarnished census, but their normal English FMGs are blank. Admit those typed ids to the same
+    # existence universe; without this, the guard correctly sees no FMG and drops every new lot.
+    for _tp_full in _TARNISHED_PACK_EQUIPMENT.values():
+        _tp_nib = _tp_full & 0xF0000000
+        NAMED_ITEM_IDS.setdefault(_tp_nib, set()).add(_tp_full & 0x0FFFFFFF)
 
 def _lot_items_by_flag():
     """flag -> [(item_id, lotItemCategory)] across both ItemLotParam tables."""
@@ -2368,6 +2542,18 @@ for _fn, _nib, _dir in _NAME_FMGS:
         _ff = _fold(_nm)
         if _ff not in _fold2full:
             _fold2full[_ff] = _full; _fold2name[_ff] = _nm
+# Publish the same verified typed-name join into the resolver used by locations and shops. This is
+# deliberately before `_resolve_item`: a non-blank input name that cannot resolve is a fatal drift,
+# and Patch 1.17 must pass that guard rather than bypass it downstream.
+for _tp_nm, _tp_full in _TARNISHED_PACK_EQUIPMENT.items():
+    _FULL2NAME_ALL.setdefault(_tp_full, _tp_nm)
+    _name2full.setdefault(_tp_nm, _tp_full)
+    _tp_norm = _norm(_tp_nm)
+    _norm2full.setdefault(_tp_norm, _tp_full)
+    _norm2name.setdefault(_tp_norm, _tp_nm)
+    _tp_fold = _fold(_tp_nm)
+    _fold2full.setdefault(_tp_fold, _tp_full)
+    _fold2name.setdefault(_tp_fold, _tp_nm)
 # annotation strippers (region_map decorates vanilla names with location bread-crumbs)
 _LEAD_RE   = re.compile(r"^[A-Z][A-Za-z0-9/()]*\s*:\s*")           # "LG/(CE): " / "RH: " / "MA/(LER): "
 _ANNOT_RE  = re.compile(r"\s+-\s+.*$")                              # " - to SW up right stairs outside"
@@ -2384,6 +2570,10 @@ def _resolve_item(_raw):
         if _s and _s not in _tries:
             _tries.append(_s)
     _add(_raw)
+    # EquipParamCustomWeapon names are display composites; AP delivers the base weapon while the
+    # source lot preserves its attached Ash of War. Resolve the catalog identity through that base.
+    if " with Ash of War: " in _raw:
+        _add(_raw.split(" with Ash of War: ", 1)[0])
     _lead = _LEAD_RE.sub("", _raw); _add(_lead); _add(_ANNOT_RE.sub("", _lead))
     _core = _COUNT_RE.sub("", _ANNOT_RE.sub("", _lead)); _add(_core); _add(_PREFIX_RE.sub("", _core))
     for _t in _tries:                            # exact normalized hit -> canonical display name
@@ -3172,13 +3362,140 @@ FLAG_REGION_OVERRIDE = {
     # A per-check pin is the narrow instrument the straddle demands. The other three stay Limgrave
     # until someone walks them.
     1043357100: "Weeping",   # Sacred Tear -- Church of Pilgrimage
+
+    # ---- THE PLAYAREA-SCAN QUEUE, #1054 (2026-08-26) ----------------------------------------
+    # Ten checks whose EXACT PlayArea point-in-volume answer (item_play_regions.tsv, the
+    # docs/PLAYAREA-ITEM-SCAN.md instrument) disagrees with the region they ship in today. These
+    # are the only rows out of that 114-row queue that are BOTH scan-exact AND ground-placed
+    # pickups -- the population the instrument rules on. The NPC-relocation families in #1054 are
+    # DELIBERATELY NOT here (the Roundtable / Limgrave Ash-of-War rows answering Mt. Gelmir off
+    # Patches and Bernahl at the Manor; the 24 "from Moore" Gravesite rows answering Scadu Altus):
+    # for a shop/grant flag the scanned point is where the NPC ENDED UP, not where the check is.
+    #
+    # Every row below cites its own item_play_regions.tsv answer. A scan row is first-hand
+    # evidence about a POINT; it is evidence about a CHECK only when the check IS that point.
+    #
+    # -- Ancient Snow Valley Ruins: five rows ship Consecrated Snowfield, stand in 65010 --------
+    # Bucket 6501000 is Mountaintops (PLAY_REGION_GROUPS). The cluster's sixth row, 1050567600,
+    # answers 65030 and is correctly Consecrated Snowfield already -- it gets NO row here, and
+    # that split is exactly why this is five per-flag pins and not a tile pin: the Ancient Snow
+    # Valley Ruins tile genuinely STRADDLES the Rold boundary, the same arity problem as the
+    # Church of Pilgrimage pin above.
+    1050567500: "Mountaintops of the Giants",  # Warming Stone -- volume: 6501000
+    1050567510: "Mountaintops of the Giants",  # Invigorating White Cured Meat -- volume: 6501000
+    1050567520: "Mountaintops of the Giants",  # Smithing Stone [7] -- volume: 6501000
+    1050567620: "Mountaintops of the Giants",  # Traveling Maiden Hood -- volume: 6501000
+    1051557330: "Mountaintops of the Giants",  # Golden Rune [13] -- volume: 6501000
+    #
+    # -- Rauh: the upper-ruins / base split 255 reported (#1046), settled by the scan -----------
+    # Rauh Base graces are bucket 6950, the upper Ancient Ruins are 6940, so the scan answers
+    # these exactly and no hand adjudication is needed. NB TWO of the five move the OTHER way:
+    # 255's report was PARTLY right, and a queue that only ever moved rows in the reported
+    # direction would be the instrument agreeing with the reporter instead of measuring.
+    2045467050: "Ancient Ruins",  # Shadow Realm Rune [7], Rauh Ancient Ruins East (1) -- volume: 69410
+    2045477020: "Ancient Ruins",  # Flight Pinion, Rauh Ancient Ruins East -- seam:@2.7m 69400
+    2046457000: "Gravesite",      # Two-Headed Turtle Talisman, Temple Town Ruins -- volume: 68100
+    2045457010: "Rauh Base",      # Grave Glovewort [5], Temple Town Ruins -- volume: 69010 (REVERSE)
+    2046467800: "Rauh Base",      # Larval Tear, near Scadu Altus West -- volume: 69010 (REVERSE)
+    #
+    # -- #1066 (J, Discord 2026-08-26): three rows on ground Gravesite does not own -------------
+    # The sweep half of #1066 re-homes Demi-Human Queen Marigga and the Jagged Peak Drake to the
+    # regions they are FOUGHT in (boss_arena_rulings.tsv, Alaric in-game 2026-08-10). These three
+    # CHECK rows are the leftovers of the same mistake, and each is pinned on its own evidence.
+    #
+    # 530845 / 530850 are the two bosses' OWN DROPS. Neither boss has a boss_area_regions row, so
+    # region_of's boss-drop branch had nothing to correct with and fell through to the tile decode
+    # -- which put both drops in Gravesite, i.e. promised a Gravesite-only player an item that can
+    # only be had by winning a fight the kick-watch ejects them from. That is J's symptom exactly,
+    # one layer down from the sweep. The ruled arena is the evidence for where you must stand to
+    # collect a boss's drop, so it is the answer here too. Pinned per-flag rather than by teaching
+    # the boss-drop branch to read boss_arena_rulings wholesale: that would move drops for all 62
+    # ruled triggers at once, which is a census-scale move nobody has measured (and the #1059 note
+    # beside _ARENA_REGION_CURATED says plainly why a sweep ruling must not be folded into
+    # BOSS_AREA_REGION -- it would take Margit's drop out of Limgrave).
+    530845: "Cerulean",       # Star-Lined Sword - Demi-Human Queen Marigga (m61_46_40; tile buckets 68300/68400)
+    530850: "Jagged Peak",    # Dragon Heart - Jagged Peak Drake (m61_49_41; nearest scanned tile m61_49_38 -> 68410)
+    #
+    # 68750 is the separable (a)-misfile named in #1066: it shipped Gravesite while the PlayArea
+    # scan answers it EXACTLY -- item_play_regions row `68750 m61_48_42_00 6860000 68600
+    # volume:...`, and 68600 is Abyssal in PLAY_REGION_GROUPS. Same instrument and evidence class
+    # as the #1054 block above (scan-exact, ground-placed pickup), and it is independent of the
+    # sweep move: it was a member of the Drake's group only because the Drake was mis-hosted.
+    68750: "Abyssal",         # Mad Craftsman's Cookbook [1], near Divided Falls -- volume: 68600
+    #
+    # -- The rest of the scan-exact, ground-placed queue (#1054 / #1046) --------------------
+    # Same instrument, same evidence class as the ten above: each row's EXACT item_play_regions
+    # answer disagrees with the nearest-grace derivation, and each is a GROUND-PLACED pickup, so
+    # the scan rules. The NPC-relocation families and the two deliberate carves stay withheld.
+    # Forbidden Lands. Corroborated independently by this same regen: grace 76500 (Forbidden Lands)
+    # moves Altus -> Mountaintops in region_graces.py off the refreshed grace ground.
+    1047517000: "Mountaintops of the Giants",   # Drawstring Fire Grease -- volume: 65000
+    # South Raya Lucaria Gate: the gate ground is the Academy's, not Liurnia's.
+    1035457000: "Raya Lucaria Academy",   # Celestial Dew -- volume: 14000
+    1035457030: "Raya Lucaria Academy",   # Strip of White Flesh -- volume: 14000
+    1035457100: "Raya Lucaria Academy",   # Meeting Place Map -- seam: 14000
+    # 🛑 Bower of Bounty / Bridge of Iniquity (1039537040 / 1039537050 / 1039537060) are WITHHELD,
+    # not refuted. The scan answers them exactly and they are ordinary ground pickups, so they meet
+    # this block's own admission rule: 1039537040 sits in bucket 6300001, the volume literally named
+    # "領域 マップ情報上書き用 (高山と火山の境界)" -- the Altus/Gelmir BOUNDARY override -- and the
+    # other two in 6300040 (高山 ... 魔術師の塔). But moving them out of Mt. Gelmir takes three of
+    # the twenty-three checks that test_gf_unspawned_field_boss pins to the region, and that gate is
+    # a deliberate #445 witness: on a Gelmir-only seed those three stop being in the seed at all.
+    # That is the CORRECT consequence of the move if the move is right, which is exactly why it
+    # needs a ruling rather than a merge resolution. Withheld pending #1054.
+    # Cerulean Coast: four rows filed Gravesite stand in the Cerulean volume.
+    2046407040: "Cerulean",   # Great Grave Glovewort
+    2046407050: "Cerulean",   # Ghost Glovewort [7]
+    2046407060: "Cerulean",   # Ghost Glovewort [9]
+    2047417110: "Cerulean",   # Mushroom-Seller's Bell Bearing [2]
+    # Ellac River / Fort of Reprimand: Gravesite ground, filed Jagged Peak off the nearest boss.
+    2048417000: "Gravesite",   # Fire Coil
+    2048417010: "Gravesite",   # Blessing of Marika
+    2048417700: "Gravesite",   # Scadutree Fragment
+    2049427000: "Gravesite",   # Talisman of the Dread
+    # Church Ruins and the Woodland Trail are Abyssal Woods ground.
+    2052407010: "Abyssal",   # Somber Smithing Stone [6]
+    2052417010: "Abyssal",   # Clarifying Boluses
+    2050437010: "Abyssal",   # Scadutree Fragment -- seam
+    2050437040: "Abyssal",   # Smithing Stone [7]
+    # 🛑 Message from Leda (580600) is deliberately NOT pinned here. This branch proposed moving it
+    # to Scadu Altus off the scan's bucket-69000 answer; main's later sweep-containment ruling
+    # (#1059) adjudicated the same report the other way -- m20_00 IS Belurat, so the Dancing Lion
+    # grant is CONTAINED, and the Shadow Keep placement is the #320/#502 multisite family, not a
+    # region error. test_gf_sweep_region_containment pins that decision, so the proposal is
+    # withdrawn rather than re-litigated in a merge.
+    #
+    # ---- 2026-08-26 (#445 ground audit): the Roundtable Golden Seed was never DERIVED ----------
+    # f400220 read "Roundtable Hold :: Golden Seed (region unconfirmed)" and the Hold was never a
+    # finding -- it is the fallback for a flag with no attributable map (its legacy region_map row
+    # is `map=PENDING, method=global_filler`), and location_descriptions.tsv records that Alaric's
+    # 2026-08-04 hand pass over all 43 Golden Seeds "left it blank": nobody could say where it is.
+    # The full-census coordinate refresh (main, 76c107e0) answered it. Its ONE lot (112200) is
+    # placed on three MSB enemies -- m10_00 (Stormveil; that tile carries 127 other Stormveil
+    # checks) and the Limgrave tiles m60_45_38 / m60_46_36 -- and none of the three is in the Hold.
+    # Why this is a defect and not a curiosity: the HUB is in scope in EVERY seed, so the Hold
+    # filing CREATES this check unconditionally, while its only bucket-resolvable ground sits in
+    # play_region 10000, behind the Stormveil lock -- the #680 shape exactly, a live check on the
+    # progression surface standing on ground the seed may forbid. It is filed on the ground the
+    # corpus can actually witness; the two Limgrave placements have no play_region row at all, so
+    # they are not evidence of reachability in either direction.
+    400220: "Stormveil",   # Golden Seed -- MSB enemy lot 112200 on m10_00
 }
 
 # These per-flag pins settle WHICH SIDE of a measured region seam owns the reward, but they do not
 # turn a graceless MSB tile into directly reachable ground. Keep the Snowfield Avatar tears as live
 # Snowfield checks while retaining the conservative DEFAULTED progression bar until their exact
 # pickup ground is witnessed in game. A region correction must not silently promote a guessed check.
-_REGION_OVERRIDE_UNCONFIRMED_FLAGS = frozenset({65130, 65170})
+# 400220 (the Roundtable Golden Seed) rides here for the SAME reason, added 2026-08-26 with its
+# region pin above. Its region moves to Stormveil on the MSB placement of lot 112200 in m10_00 --
+# but it has three placements, only one of which any table can resolve to a play_region, and its
+# exact pickup ground has never been witnessed in game. So the pin settles WHERE IT IS FILED and
+# nothing else: the check keeps its DEFAULTED bar and its "(region unconfirmed)" hedge, exactly as
+# it had them in the Hold. Promoting it to a progression host is a separate step and needs an
+# in-game witness, not a datamine -- and this is the check that softlocked
+# AP_55352390472076588352 (test_gf_defaulted_region_guard), so it is the last one to promote on a
+# derivation alone.
+_REGION_OVERRIDE_UNCONFIRMED_FLAGS = frozenset({65130, 65170, 400220})
 
 # ---- Curated dungeon-region OVERRIDE (matt-free, hand/playtest-verified) ----------------------
 # The coarse REGION_MAP buckets every minor dungeon into one region ("Caves"->Limgrave,
@@ -4371,6 +4688,10 @@ _REGION_MERGES = {"Sewer": "Leyndell"}
 # audit; a stale "Sewer" there would make an audited arena look unaudited.
 for _k in list(BOSS_AREA_REGION):
     BOSS_AREA_REGION[_k] = _REGION_MERGES.get(BOSS_AREA_REGION[_k], BOSS_AREA_REGION[_k])
+# Same for the HUMAN rulings, which now feed the same two consumers (#1066): a tsv is free to keep
+# saying "Sewer" about a place, and this is the one chokepoint that decides what region that is.
+for _k in list(_BOSS_ARENA_RULING):
+    _BOSS_ARENA_RULING[_k] = _REGION_MERGES.get(_BOSS_ARENA_RULING[_k], _BOSS_ARENA_RULING[_k])
 
 
 def region_of(r):
@@ -4507,8 +4828,20 @@ SHOP_ITEM_FLAGS = {}                # (equip_type, equip_id) -> {stock flags sel
 SHOP_RELEASE_GATED_FLAGS = set()
 _shop_new = []
 if os.path.isfile(_SHOP_ROWS_TSV):
-    _have = {int(r["flag"]) for r in rows if str(r.get("flag", "")).strip().isdigit()}
-    _seen = set()
+    # `shop_reference` marks ShopLineupParam data that is not a merchant location (starting gear,
+    # caster kits, and gallery/reference rows). The authored row filter drops those seeds, but this
+    # recovery pass used to mint them straight back because they looked like missing limited-stock
+    # shop checks (#1097).
+    #
+    # One 100-row ShopLineup block is one storefront, so one curated reference seed proves that the
+    # whole block is reference data. Derive that closure rather than maintaining a sibling-flag list.
+    _shop_reference_seed_flags = {
+        int(_r["flag"]) for _r in _ALLROWS
+        if _r.get("method") == "shop_reference"
+        and str(_r.get("flag", "")).strip().isdigit()
+    }
+    _shop_tsv_rows = []
+    _shop_reference_blocks = set()
     with open(_SHOP_ROWS_TSV, encoding="utf-8") as _f:
         for _line in _f:
             if _line.startswith("#") or _line.startswith("row_id"):
@@ -4516,48 +4849,62 @@ if os.path.isfile(_SHOP_ROWS_TSV):
             _p = _line.rstrip("\n").split("\t")
             if len(_p) < 9:
                 continue
-            _flag = int(_p[5])
-            _wkey = (int(_p[2]), int(_p[3]))            # the ware ledger counts EVERY row (above)
-            SHOP_FLAG_ITEMS.setdefault(_flag, set()).add(_wkey)
-            SHOP_ITEM_FLAGS.setdefault(_wkey, set()).add(_flag)
-            # RESERVED / EXCLUDED flags are excluded from `rows` on purpose, so they look "missing" to
-            # the appender below and it would happily MINT them back -- which is worse than the bug it
-            # fixes. In particular flag 60290 (ShopLineupParam row 101801, the Twin Maidens' Blue Cipher
-            # Ring slot) is RESERVED BY MINIBAKER: the client repurposes that row into the infinite
-            # Stonesword Key vendor, so a check placed on it would be clobbered at runtime -- and the
-            # shop_sell rewrite and the minibaker rewrite would fight over the same row. Honour the same
-            # exclusions the main `rows` filter honours, for the detect table AND the mint.
-            if (_flag in MINIBAKER_VENDOR_FLAGS or _flag in EXCLUDE_FLAGS
-                    or _flag in MAP_REVEAL_FLAGS):
-                continue
-            DERIVED_SHOP_FLAGS.add(_flag)
-            # eventFlag_forRelease != 0 -> the row does not EXIST in the menu until some event fires.
-            # AP reachability answers "is the region open?" -- necessary, but not sufficient here.
-            if len(_p) >= 11 and _p[10].strip() not in ("", "0"):
-                SHOP_RELEASE_GATED_FLAGS.add(_flag)
-            if _flag in _have or _flag in _seen:
-                continue                       # already a location (its world source) -> no duplicate
-            _seen.add(_flag)
-            _nm, _val, _reg = _p[4].strip(), int(_p[7] or 0), _p[8].strip()
-            if not _nm:
-                continue                       # unnamed -> cannot make a legible check
-            # value == 0 => a TRADE/RETURN, not a purchase: Enia's remembrance shop. 65 of those rows
-            # hand back a REMEMBRANCE you already own (a duplication mechanic, not an item source), so
-            # minting a location for one puts a SECOND copy of a unique item in the pool and breaks the
-            # singleton invariant (test_unique_key_items_are_singletons caught exactly this: Remembrance
-            # of Putrescence x3). The other 51 free rows are the trade OUTPUTS (Axe of Godrick, Hand of
-            # Malenia) -- those already have locations, so they mint nothing here and simply keep their
-            # shop-row mapping via DERIVED_SHOP_FLAGS above. Detect: yes. Mint a location: never.
-            if _val <= 0:
-                continue
-            _shop_new.append({
-                "ap_id": "", "flag": str(_flag), "flag_source": "shop", "item_name": _nm,
-                "map": "PENDING",
-                # empty region => not in REGION_MAP => _region_of_raw defaults to HUB and
-                # _region_is_derived() calls it DEFAULTED => barred from carrying progression.
-                "region": _reg if _reg else "Unknown merchant (unresolved block)",
-                "method": "shop_merchant",
-            })
+            _shop_tsv_rows.append(_p)
+            if int(_p[5]) in _shop_reference_seed_flags:
+                _shop_reference_blocks.add(int(_p[1]))
+
+    _have = {int(r["flag"]) for r in rows if str(r.get("flag", "")).strip().isdigit()}
+    _seen = set()
+    for _p in _shop_tsv_rows:
+        _flag = int(_p[5])
+        _wkey = (int(_p[2]), int(_p[3]))            # the ware ledger counts EVERY row (above)
+        SHOP_FLAG_ITEMS.setdefault(_flag, set()).add(_wkey)
+        SHOP_ITEM_FLAGS.setdefault(_wkey, set()).add(_flag)
+        # RESERVED / EXCLUDED flags are excluded from `rows` on purpose, so they look "missing" to
+        # the appender below and it would happily MINT them back -- which is worse than the bug it
+        # fixes. In particular flag 60290 (ShopLineupParam row 101801, the Twin Maidens' Blue Cipher
+        # Ring slot) is RESERVED BY MINIBAKER: the client repurposes that row into the infinite
+        # Stonesword Key vendor, so a check placed on it would be clobbered at runtime -- and the
+        # shop_sell rewrite and the minibaker rewrite would fight over the same row. Honour the same
+        # exclusions the main `rows` filter honours, for the detect table AND the mint.
+        if (int(_p[1]) in _shop_reference_blocks
+                or _flag in MINIBAKER_VENDOR_FLAGS or _flag in EXCLUDE_FLAGS
+                or _flag in MAP_REVEAL_FLAGS):
+            continue
+        DERIVED_SHOP_FLAGS.add(_flag)
+        # eventFlag_forRelease != 0 -> the row does not EXIST in the menu until some event fires.
+        # AP reachability answers "is the region open?" -- necessary, but not sufficient here.
+        if len(_p) >= 11 and _p[10].strip() not in ("", "0"):
+            SHOP_RELEASE_GATED_FLAGS.add(_flag)
+        if _flag in _have or _flag in _seen:
+            continue                       # already a location (its world source) -> no duplicate
+        _seen.add(_flag)
+        _nm, _val, _reg = _p[4].strip(), int(_p[7] or 0), _p[8].strip()
+        if not _nm:
+            continue                       # unnamed -> cannot make a legible check
+        # value == 0 => a TRADE/RETURN, not a purchase: Enia's remembrance shop. 65 of those rows
+        # hand back a REMEMBRANCE you already own (a duplication mechanic, not an item source), so
+        # minting a location for one puts a SECOND copy of a unique item in the pool and breaks the
+        # singleton invariant (test_unique_key_items_are_singletons caught exactly this: Remembrance
+        # of Putrescence x3). The other 51 free rows are the trade OUTPUTS (Axe of Godrick, Hand of
+        # Malenia) -- those already have locations, so they mint nothing here and simply keep their
+        # shop-row mapping via DERIVED_SHOP_FLAGS above. Detect: yes. Mint a location: never.
+        if _val <= 0:
+            continue
+        _shop_new.append({
+            "ap_id": "", "flag": str(_flag), "flag_source": "shop", "item_name": _nm,
+            "map": "PENDING",
+            # empty region => not in REGION_MAP => _region_of_raw defaults to HUB and
+            # _region_is_derived() calls it DEFAULTED => barred from carrying progression.
+            "region": _reg if _reg else "Unknown merchant (unresolved block)",
+            "method": "shop_merchant",
+        })
+    # Preserve every previously shipped positional AP id. Newly named Tarnished Pack rows existed
+    # in ShopLineupParam before this option, but were skipped while their FMG names were unknown;
+    # sorting them among the older recovered shops would insert checks into the positional tail and
+    # renumber every later shop check. Keep the legacy recovery order byte-for-byte and append this
+    # optional expansion as one suffix.
+    _tp_location_flags = set(_tpmod.TARNISHED_PACK_LOCATION_FLAGS)
     rows = rows + _shop_new
 print(f"shop rows: +{len(_shop_new)} DERIVED shop checks region_map had lost "
       f"({len(DERIVED_SHOP_FLAGS)} detectable stock flags)")
@@ -5111,6 +5458,21 @@ if _gest_clash:
     raise SystemExit(f"FATAL: gesture flags {_gest_clash} now ALSO appear in region_map.csv -- "
                      f"two sources for one check; reconcile (keep exactly one)")
 
+# Positional AP ids are assigned below. Do this after EVERY producer (primary rows, recovered shops,
+# gestures, co-checks) has finished: the Tarnished Pack checks are new in v0.5.3 and must occupy one
+# suffix, never insert into the 4,627-row shipped corpus and renumber existing checks.
+_tp_location_flags = set(_tpmod.TARNISHED_PACK_LOCATION_FLAGS)
+_tp_location_order = {
+    _flag: _index for _index, _flag in enumerate(_tpmod.TARNISHED_PACK_LOCATION_ORDER)
+}
+_tp_rows = {int(r["flag"]): r for r in rows if int(r["flag"]) in _tp_location_flags}
+if set(_tp_rows) != _tp_location_flags:
+    raise SystemExit("FATAL: Tarnished Pack location order and generated rows disagree: "
+                     f"missing={sorted(_tp_location_flags - set(_tp_rows))}, "
+                     f"extra={sorted(set(_tp_rows) - _tp_location_flags)}")
+rows = ([r for r in rows if int(r["flag"]) not in _tp_location_flags]
+        + sorted(_tp_rows.values(), key=lambda r: _tp_location_order[int(r["flag"])]))
+
 buckets=OrderedDict()
 loc_tags={}
 defaulted_aps=[]        # region GUESSED (fell back to HUB) -> may never carry progression
@@ -5618,6 +5980,11 @@ _NR_RULES = (
     (lambda _fl, _r: _fl in MINIBAKER_VENDOR_FLAGS,
      "minibaker_vendor_row: ShopLineupParam row 101801 is repurposed at runtime as the infinite "
      "Stonesword Key vendor (features/minibaker.py); a check here would be clobbered"),
+    (lambda _fl, _r: _fl in _ENIA_SHOP_FLAGS,
+     "enia_vanilla: Finger Reader Enia's shop is excluded from randomization (Alaric 2026-08-24, "
+     "world#1013) -- her armor rows release on ceremony flags and her trades on holding the "
+     "remembrance, so her checks read sphere-1 in the spoiler while her menu is empty at start; "
+     "her stock stays vanilla"),
     (lambda _fl, _r: _fl == 400280,
      "obtained_flag_twin: Haligtree Secret Medallion (Left) obtained-flag twin of the placed "
      "Castle Sol pickup f1051587800; keeping both double-checks one medallion"),
@@ -5627,6 +5994,10 @@ _NR_RULES = (
     (lambda _fl, _r: _fl in _MISC_NON_CHECK,
      "misc_non_check: tutorial/system grant or empty lot (Flask, Torrent's whistle, Wizened "
      "Finger, 'About...' popups) -- not loot, never a check"),
+    (lambda _fl, _r: _fl in _UNUSED_ESD_AWARDS,
+     "unused_esd_award: award branch is unreachable in shipped game data -- Neutralizing Boluses "
+     "lot 100200 requires f10009335, whose only corpus occurrence is that guard read; no ESD, "
+     "EMEVD, or parameter source sets/defaults it (world#1111)"),
     (lambda _fl, _r: _fl in _RECOVER_PHANTOM_DUPES,
      "recover_phantom_dupe: unplaced global flag naming a unique key item already fully placed "
      "elsewhere; recovering it would duplicate a singleton key"),
@@ -5672,7 +6043,7 @@ _nr_unexplained = EXCLUDE_FLAGS - (MAP_REVEAL_FLAGS | MINIBAKER_VENDOR_FLAGS | f
                                    | _GREAT_RUNE_TOWER_DUPES | _MISC_NON_CHECK
                                    | _RECOVER_PHANTOM_DUPES | _UNREACHABLE_DEAD
                                    | _UNPLACEABLE_DLC_COOKBOOKS | _SHEET_DROPS | _RADA_WORLDLESS
-                                   | _WORLDLESS_SINGLES)
+                                   | _WORLDLESS_SINGLES | _ENIA_SHOP_FLAGS | _UNUSED_ESD_AWARDS)
 if _nr_unexplained:
     raise SystemExit("FATAL: EXCLUDE_FLAGS member(s) %r have no NOT_RANDOMIZED ledger rule -- add "
                      "the new exclusion to _NR_RULES (gen_data) so deliberate absence stays "
@@ -7498,16 +7869,25 @@ elif _slp_present:
                      "present -- run tools/datamine_shop_open_ranges.py (issue #937). Refusing a "
                      "scopeless shop_data emit.")
 
-# The check flags among the DLC-gated stock flags, with a rule-4 tally by region so the number
-# is auditable. Expected shape: the hub's Enia block (the motivating case) plus DLC-region rows
-# that are redundantly listed (their locations leave with their regions regardless).
+# The RAW DLC-gated stock flags, then the check flags among them, with a rule-4 tally by region
+# so the number is auditable. With Enia vanilla (#1013) the raw set is exactly her 36 rows (15
+# DLC boss-armor releases + 2 Dancing Lion + 19 remembrance trades) and the CHECK set is EMPTY:
+# her rows are no longer locations. Both are still emitted -- the raw set keeps the #913
+# machinery's derivation observable (and arms it for any future hub row that becomes a check),
+# and the check set is what core.py skips per-seed when the DLC is off. A DLC-region merchant's
+# gated row would land in the raw set too, harmlessly -- its location already leaves with the
+# region.
+DLC_GATED_SHOP_ROW_FLAGS = sorted(_flag2dlcgate)
 DLC_GATED_SHOP_CHECK_FLAGS = sorted(
-    _fl for _fl in set(SHOP_ROW_FLAGS.values()) & _flag2dlcgate)
+    _fl for _fl in set(SHOP_ROW_FLAGS.values()) & _flag2dlcgate
+    if _fl not in _tpmod.TARNISHED_PACK_LOCATION_FLAGS)
 _dlc_shop_by_region = Counter(
     SHOP_LOC_REGION[int(_aid)] for _aid, _fl in SHOP_ROW_FLAGS.items()
-    if _fl in _flag2dlcgate and int(_aid) in SHOP_LOC_REGION)
-print("shop_data: %d DLC-gated shop check flag(s) (skipped per-seed when the DLC is off): %s"
-      % (len(DLC_GATED_SHOP_CHECK_FLAGS), dict(_dlc_shop_by_region)))
+    if _fl in DLC_GATED_SHOP_CHECK_FLAGS and int(_aid) in SHOP_LOC_REGION)
+print("shop_data: %d DLC-gated stock flag(s) raw, %d shop check flag(s) among them "
+      "(skipped per-seed when the DLC is off): %s"
+      % (len(DLC_GATED_SHOP_ROW_FLAGS), len(DLC_GATED_SHOP_CHECK_FLAGS),
+         dict(_dlc_shop_by_region)))
 
 OUT_SHOP = os.path.join(HERE, "eldenring", "shop_data.py")
 with open(OUT_SHOP, "w", newline="\n", encoding="utf-8") as f:
@@ -7529,6 +7909,14 @@ with open(OUT_SHOP, "w", newline="\n", encoding="utf-8") as f:
     f.write("# forever-uncompletable checks (AzoTax, 2026-08-20: a no-DLC seed goal-locked on one).\n")
     f.write("DLC_GATED_SHOP_CHECK_FLAGS = frozenset({\n")
     for _fl in DLC_GATED_SHOP_CHECK_FLAGS:
+        f.write(f"    {_fl},\n")
+    f.write("})\n\n# RAW DLC-gated stock flags (every ShopLineupParam row meeting the predicate, whether or\n")
+    f.write("# not it is a check). This includes unnamed raw param rows that have not become\n")
+    f.write("# locations yet; DLC_GATED_SHOP_CHECK_FLAGS above intersects the live shop table.\n")
+    f.write("# With Enia vanilla (#1013) the check set is empty -- kept so the #913 derivation stays\n")
+    f.write("# observable and re-arms itself if a gated hub row ever becomes a check again.\n")
+    f.write("DLC_GATED_SHOP_ROW_FLAGS = frozenset({\n")
+    for _fl in DLC_GATED_SHOP_ROW_FLAGS:
         f.write(f"    {_fl},\n")
     f.write("})\n\nSHOP_PREVIEW_GOODS = {\n")
     for _aid in sorted(SHOP_PREVIEW_GOODS, key=int):
@@ -7833,6 +8221,13 @@ _CRAFTED_DLC_FILLER = sorted(
          or _nm.endswith("Spraymist") or _nm.endswith("Aromatic")))
 for _cn, _cfull in _CRAFTED_DLC_FILLER:
     ITEM_CATALOG.setdefault(_cn, _cfull)
+# Patch 1.17's normal English FMGs omit the paid-pack names. The verified name->FullID join lives
+# beside the ownership gate in tarnished_pack.py; add only those 26 player-equipment rows. This is
+# count-neutral: it widens the pool-builder candidate catalog but adds no checks or locations.
+for _tn, _tfull in _TARNISHED_PACK_EQUIPMENT.items():
+    if _tn in ITEM_CATALOG and ITEM_CATALOG[_tn] != _tfull:
+        raise SystemExit("gen_data: Tarnished Pack name collision for %r" % _tn)
+    ITEM_CATALOG[_tn] = _tfull
 # Crafted-only FOODS (Alaric 2026-07-11): same situation as the pots -- never LOOTED, so never in the
 # placed-item catalog, but valid grantable goods. Resolved BY NAME from GoodsName.fmg.xml via the same
 # _resolve_item map the placed items use, so no ids are hand-guessed (unlike _FINISHED_POTS above, which
@@ -8373,6 +8768,10 @@ if os.path.isfile(_TSV_PATH):
         if _t is not None and _nm in ITEM_CATALOG:
             _tsv_tier[_nm] = _t
 ITEM_TIERS = dict(_param_tier); ITEM_TIERS.update(_tsv_tier)   # TSV precedence; param fills the gaps
+# New paid-pack gear has no community tier-list history yet. Product decision: honorary S tier, so
+# every enabled item participates at every pool-builder intensity until evidence supports curation.
+for _tn in _TARNISHED_PACK_EQUIPMENT:
+    ITEM_TIERS[_tn] = 3
 
 # 🛑 REACHABILITY, SAID OUT LOUD. Registering a name is necessary, not sufficient: pool_builder
 # juices names whose tier clears a FLOOR, and the lowest floor any intensity offers is 1. An added
@@ -10139,7 +10538,37 @@ if BOSS_HEALTHBARS:
             # paying out the always-open hub is never the intended reading, so there is no case where
             # falling back to HUB is right. Collect and fail at the end of the pass with every
             # offender named, rather than one assert per boss.
-            _lreg = _m61_boss_region(_ent) or _LEGACY_BMAP_REGION.get(_bmap) or _mreg.get(_bmap)
+            # 🛑 THE MEASURED ARENA OUTRANKS THE TILE DECODE (2026-08-26, #1059, NovahDango's
+            # Jori report). BOSS_AREA_REGION is PlayRegionParam's own answer to "which region is
+            # the player STANDING IN while this boss dies" -- first-hand geometry. Everything to
+            # its right is the nearest-neighbour tile machinery that also regions the CHECKS, so
+            # putting it first was the bug: the boss inherited its members' region by construction
+            # and a sweep could pay out checks in a region the player never had to enter.
+            #
+            # Jori, Elder Inquisitor is the motivating case. `_m61_boss_region` reads his m61_52_43
+            # tile as Abyssal, so he hosted an Abyssal divvy slice -- five Abyssal checks reading
+            # "also granted by Jori" -- while the fight itself is in SCADU ALTUS (bucket 40020,
+            # and Alaric walked it in game on 2026-08-10; boss_verdict_tiles.tsv carries the
+            # verdict). Alaric's ruling, 2026-08-26: "there shouldn't be any [Abyssal checks
+            # sweeping on Jori], or cross-region boss sweeps in general."
+            #
+            # This is a RE-HOST, not a drop. Jori becomes a Scadu Altus divvy host, and the five
+            # Abyssal checks fall back into the Abyssal divvy pool for Abyssal's own hosts -- the
+            # existing machinery, no orphans. Ranking it here rather than filtering members later
+            # is what makes that true: a late filter would strip the members after the divvy had
+            # already been dealt, and they would simply go unswept.
+            #
+            # ...and where PlayRegionParam has NO row at all, a HUMAN RULING outranks the tile
+            # decode for the same reason (#1066, J's report). boss_arena_rulings.tsv is Alaric's
+            # in-game answer to "where do you stand to kill this"; `_m61_boss_region` is the
+            # nearest-neighbour tile machinery that also regions the CHECKS. Ranking the ruling
+            # above it re-homes Marigga to Cerulean and the Jagged Peak Drake to Jagged Peak --
+            # a RE-HOST, not a drop: their Gravesite members fall back into the Gravesite divvy
+            # pool and are dealt to Gravesite's own hosts by the existing machinery.
+            _lreg = (_ARENA_REGION_CURATED.get(_ent) or BOSS_AREA_REGION.get(_ent)
+                     or _BOSS_ARENA_RULING.get(_ent)
+                     or _m61_boss_region(_ent)
+                     or _LEGACY_BMAP_REGION.get(_bmap) or _mreg.get(_bmap))
             if not _lreg:
                 _unregioned_legacy.append((_ent, _bmap, _name))
                 continue
@@ -10625,35 +11054,6 @@ else:
 # UNAUDITED, not clean. The count is printed on every regen and ratcheted by
 # test_gf_boss_sweeps.py::test_sweep_arena_coverage_floor -- a self-reported coverage number is not
 # a safeguard unless something acts on it (CONTRIBUTING rule 11).
-# ---- the HUMAN half of the same question (boss_arena_rulings.tsv) -----------------------------
-# PlayRegionParam only ties a boss-area row to a DEFEAT flag for some bosses, so the table above is a
-# lower bound BY CONSTRUCTION -- and 106 of 218 triggers had no row. But the answer already existed:
-# Alaric ruled the PLACE 76 of 83 bosses stand in, in boss_region_worksheet.tsv's arena_region column
-# (2026-08-10, commit 41e8fe7 -- "arena_region IS the ruling column"). Until now nothing read it for
-# THIS question: --expand consumed those rulings only to re-region ambiguous CHECKS
-# (boss_verdict_tiles.tsv), which is a different question -- #523 is precisely the case where "which
-# region owns its checks" and "where is it fought" disagree.
-#
-# 🛑 RANKED BELOW MEASURED EVIDENCE, exactly like boss_verdict_tiles: a ruling fills an ABSENT and can
-# never overrule a PlayRegionParam row. A wrong ruling costs an unaudited trigger, never a measured one.
-_BOSS_ARENA_RULING = {}
-_bar_path = os.path.join(HERE, "boss_arena_rulings.tsv")
-if os.path.isfile(_bar_path):
-    with open(_bar_path, encoding="utf-8") as _rfh:
-        for _rl in _rfh:
-            if _rl[:1] == "#" or _rl.startswith("boss_entity"):
-                continue
-            _rp = _rl.rstrip("\n").split("\t")
-            if len(_rp) >= 3 and _rp[0].isdigit() and _rp[2]:
-                _BOSS_ARENA_RULING[int(_rp[0])] = _rp[2]
-    _bad_a = sorted({_r for _r in _BOSS_ARENA_RULING.values() if _r not in REGION_GROUPS and _r != HUB})
-    if _bad_a:
-        raise SystemExit(
-            "gen_data: boss_arena_rulings.tsv names region(s) %r that do not exist. A ruling must "
-            "resolve to a real region -- add the in-game place name to PLACE_TO_REGION in "
-            "tools/build_boss_region_worksheet.py rather than writing a phantom region here."
-            % _bad_a)
-
 # ---- MAJOR_SWEEP_TRIGGERS: which sweeps are a MAJOR boss's (issue #734) ---------------------------
 # `SweepSlotMajor` / `SweepSlotMinor` split the derived SweepSlot class, and Alaric's ruling
 # (2026-08-16) is that "major" here means EXACTLY the `MajorBoss` progression-surface class -- not
@@ -10807,24 +11207,48 @@ print("boss_sweeps: %d trigger(s) filled from a HUMAN RULING where PlayRegionPar
 #   ground is untouched: PLAY_REGION_GROUPS keeps buckets 61010 (his arena) and 61001 (Castleward
 #   Tunnel mouth + Stormhill Shack) in Limgrave, so the fight and the death-recovery route back into
 #   the arena stay reachable before Stormveil opens. This table only moves the SWEEP arena region.
-_ARENA_REGION_CURATED = {
-    10000850: "Stormveil",
-}
+# _ARENA_REGION_CURATED is DECLARED beside the BOSS_AREA_REGION load (#1059) so the sweep host
+# derivation can consult it, and it is APPLIED to the arena label here. Both readers see one
+# answer, and neither of them is the boss-drop region -- see the block at the declaration.
 for _t, _reg in _ARENA_REGION_CURATED.items():
     if _t not in DUNGEON_SWEEPS:
         raise SystemExit(
             "gen_data: arena-region override %d no longer names a live sweep trigger" % _t)
-    if _reg not in REGION_GROUPS and _reg != HUB:
-        raise SystemExit(
-            "gen_data: arena-region override %d -> %r names a region that does not exist" % (_t, _reg))
-    if SWEEP_ARENA_REGION.get(_t) == _reg:
-        raise SystemExit(
-            "gen_data: arena-region override %d -> %r is REDUNDANT; the measured/derived arena "
-            "region now agrees, so delete the override" % (_t, _reg))
     SWEEP_ARENA_REGION[_t] = _reg
 
 _sweep_arena_split = {_t: (SWEEP_REGION[_t], SWEEP_ARENA_REGION[_t])
                       for _t in SWEEP_ARENA_REGION if SWEEP_ARENA_REGION[_t] != SWEEP_REGION.get(_t)}
+
+# ---- THE CONTAINMENT INVARIANT (#1059, Alaric 2026-08-26) --------------------------------------
+# "there shouldn't be any [Abyssal checks sweeping on Jori], or cross-region boss sweeps in
+# general." A sweep trigger's MEMBERS must live in the region the trigger is FOUGHT in. Before this
+# gate the repo could only observe the violation and hope the seed rolled a shape that hid it:
+# features/boss_locks drops an arena/members split only when the seed keeps the members' region
+# WITHOUT the arena's, so a seed holding both regions paid the cross-region grant out in full --
+# which is exactly what NovahDango and Lilith saw and reported on Discord.
+#
+# 🛑 THIS GATE IS NOT A TAUTOLOGY, and that is the thing to check before trusting it.
+# tools/datamine_check_nearest_boss.py measured "checks whose OWN region != their sweep boss's
+# SWEEP_REGION: 0" and explained the zero honestly: SWEEP_REGION is DERIVED from the members, so it
+# cannot disagree with them. SWEEP_ARENA_REGION is different evidence -- PlayRegionParam's own
+# answer to where the player stands -- and it CAN disagree. That is why the invariant is stated
+# against the arena region and why the audit that motivated it found 22 real links, not zero.
+#
+# A trigger with no measured arena row is UNAUDITED, not clean: it is skipped here and counted in
+# the line above, and test_gf_sweep_region_containment ratchets that count so the gate cannot be
+# widened by quietly losing arena coverage.
+if _sweep_arena_split:
+    raise SystemExit(
+        "gen_data: CROSS-REGION BOSS SWEEP -- %d trigger(s) grant checks outside the region the "
+        "boss is fought in, which #1059 forbids: %s\n"
+        "Fix the SOURCE, not this list: a legacy boss's host region is BOSS_AREA_REGION (the "
+        "measured arena) and its members are dealt from that region's divvy, so a split here means "
+        "either boss_area_regions.tsv disagrees with region_groups.py, or a curated ruling moved "
+        "the arena label without moving the members."
+        % (len(_sweep_arena_split),
+           ", ".join("%d members=%s arena=%s" % (_t, _sweep_arena_split[_t][0],
+                                                 _sweep_arena_split[_t][1])
+                     for _t in sorted(_sweep_arena_split))))
 _sweep_arena_unaudited = sorted(set(DUNGEON_SWEEPS) - set(SWEEP_ARENA_REGION))
 print("boss_sweeps: arena regions known for %d of %d trigger(s); %d UNAUDITED (no boss_area_regions "
       "row -- not clean, unmeasured), holding %d member link(s)"

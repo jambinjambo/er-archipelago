@@ -270,5 +270,324 @@ class CheckBrowserTest(unittest.TestCase):
             "run: python tools/build_check_browser.py")
 
 
+TEMPLATE = os.path.join(REPO, "tools", "check_browser_template.html")
+ISSUE_FORM = os.path.join(REPO, ".github", "ISSUE_TEMPLATE", "check-report.yml")
+NODE = None
+for _cand in ("node", "nodejs"):
+    try:
+        subprocess.run([_cand, "--version"], check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+        NODE = _cand
+        break
+    except (OSError, subprocess.CalledProcessError):
+        pass
+
+
+@unittest.skipUnless(RUNNING_FROM_REPO, REPO_ONLY_REASON)
+class ReportAProblemLink(unittest.TestCase):
+    """Every check row can open a PREFILLED GitHub issue about itself (Alaric, 2026-08-27).
+
+    A static page cannot POST, and we are not adding a backend to collect bug reports. The whole
+    mechanism is a plain <a href> to github.com's new-issue form with query parameters -- a
+    NAVIGATION, so the self-contained-page rule is untouched: the page still fetches nothing.
+
+    Rule 11, the motivating case: a player finds the check that misbehaved in the browser, clicks
+    one link, and lands on a GitHub issue form that already knows which check it is, which region
+    it was assigned, which map tile it sits on and how that region was decided -- none of which the
+    player could be expected to supply, and all of which triage needs before it can start.
+
+    WHAT THIS GATE IS FOR. The link is built by string concatenation in JS, so its failure mode is
+    a URL that LOOKS fine and is wrong: an unescaped `&` in a check name truncating the body, a
+    template filename that no longer exists, a field id renamed on one side only. None of those
+    show up as an error anywhere -- the player just gets a half-empty form, or GitHub's 404. So:
+    the URL is evaluated under node from the SHIPPED page, parsed as a URL, and its parameter names
+    are checked against the ids in the issue form itself.
+
+    🛑 Only `input` and `textarea` fields prefill from a URL query -- that is the whole of what
+    GitHub documents ("Creating an issue from a URL query" + the form-schema `id` key). So the gate
+    asserts every prefilled parameter names a TEXT field. The `symptom` dropdown is deliberately
+    not prefilled: the browser does not know what happened to the player.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        with open(SHIPPED, encoding="utf-8") as fh:
+            cls.page = fh.read()
+        with open(TEMPLATE, encoding="utf-8") as fh:
+            cls.tpl = fh.read()
+
+    def _form(self):
+        import yaml
+        with open(ISSUE_FORM, encoding="utf-8") as fh:
+            return yaml.safe_load(fh)
+
+    # -- the page carries the link -----------------------------------------
+    def test_the_template_emits_a_report_link_for_every_row(self):
+        self.assertIn('class="rep2"', self.tpl,
+                      "the report link is gone from the detail pane; a check browser that cannot "
+                      "report a check is the thing this gate exists to prevent")
+        self.assertIn("checkReportUrl", self.tpl)
+        self.assertIn("const REPORT_TEMPLATE='check-report.yml'", self.tpl,
+                      "the issue-form filename is no longer a single named constant, so the gate "
+                      "below can no longer tell whether the page and the form agree")
+
+    def test_the_shipped_page_carries_it_too(self):
+        """The template is the source, the shipped page is what peliarch serves. A gate on the
+        template alone passes happily while the deployed page is a regen behind."""
+        self.assertIn("checkReportUrl", self.page)
+        self.assertIn("check-report.yml", self.page)
+
+    def test_the_page_still_fetches_nothing_at_load(self):
+        """github.com appears in the page as a link target only. A `fetch` to it would break the
+        self-contained rule and leak every reader's view."""
+        for bad in ("fetch(", "XMLHttpRequest", "new WebSocket"):
+            self.assertNotIn(bad, self.page,
+                             f"{bad} appeared in the check browser; the page is served from a file "
+                             f"and must make no requests on load")
+
+    # -- the URL is well formed --------------------------------------------
+    @unittest.skipUnless(NODE, "needs node to evaluate the page's own URL builder")
+    def test_the_url_is_well_formed_for_sampled_rows(self):
+        """Evaluated under node, from the shipped page's OWN source -- not a python re-write of it.
+        A test that reimplemented the builder would agree with itself and prove nothing.
+
+        The sample is deliberately not random: the first row, the last row, and every row whose
+        name carries a character that has broken a query string before -- `&`, `#`, `+`, `%`, a
+        quote, a comma, a non-ASCII dash.
+        """
+        harness = r"""
+const fs = require('fs');
+const src = fs.readFileSync(process.argv[2], 'utf8');
+const m = src.match(/^const DATA = (\{.*\});$/m);
+const DATA = JSON.parse(m[1]);
+const CHECKS = DATA.checks, META = DATA.meta;
+const REPO = 'https://github.com/4laric/er-archipelago';
+const location = {href: 'https://peliarch.ca/er/checks.html#q=&id=1'};
+// the two builders, lifted verbatim out of the page
+function grab(name){
+  const i = src.indexOf('function ' + name + '(');
+  if (i < 0) throw new Error('no function ' + name);
+  let d = 0, j = src.indexOf('{', i);
+  for (let k = j; k < src.length; k++){
+    if (src[k] === '{') d++;
+    else if (src[k] === '}') { d--; if (!d) return src.slice(i, k + 1); }
+  }
+  throw new Error('unbalanced ' + name);
+}
+const constLine = src.match(/^const REPORT_TEMPLATE=.*$/m);
+if (!constLine) throw new Error('no REPORT_TEMPLATE constant in the page');
+eval(constLine[0] + '\n' + grab('tileMates') + '\n' + grab('checkFacts') + '\n' + grab('checkReportUrl'));
+const risky = c => /[&#+%'",–—]/.test(c.full || '');
+const pick = new Set([CHECKS[0], CHECKS[CHECKS.length - 1]]);
+let n = 0;
+for (const c of CHECKS) { if (risky(c) && n++ < 60) pick.add(c); }
+const out = [];
+for (const c of pick) out.push({id: c.id, full: c.full, url: checkReportUrl(c)});
+process.stdout.write(JSON.stringify({risky: n, rows: out}));
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            hp = os.path.join(tmp, "h.js")
+            with open(hp, "w", encoding="utf-8") as fh:
+                fh.write(harness)
+            res = subprocess.run([NODE, hp, SHIPPED], capture_output=True, text=True)
+        self.assertEqual(0, res.returncode, res.stderr[-2000:])
+        got = json.loads(res.stdout)
+        self.assertGreater(got["risky"], 0,
+                           "no check name in the corpus carries a query-hostile character, so the "
+                           "escaping half of this gate witnessed nothing. Widen the sample.")
+        ids = {b.get("id") for b in self._form()["body"] if b.get("id")}
+        try:                                   # py3.9+: the stdlib parser is the arbiter, not a regex
+            from urllib.parse import urlsplit, parse_qs
+        except ImportError:                    # pragma: no cover
+            raise
+        for row in got["rows"]:
+            u = urlsplit(row["url"])
+            self.assertEqual("https", u.scheme, row["url"][:120])
+            self.assertEqual("github.com", u.netloc, row["url"][:120])
+            self.assertEqual("/4laric/er-archipelago/issues/new", u.path)
+            q = parse_qs(u.query, keep_blank_values=True, strict_parsing=True)
+            self.assertEqual({"template", "title", "check", "facts"}, set(q),
+                             f"unexpected query parameters for check {row['id']}")
+            self.assertEqual(["check-report.yml"], q["template"])
+            # the round trip is the point: whatever was in the name comes back out intact
+            self.assertIn(row["full"], q["check"][0],
+                          f"check {row['id']} lost part of its name through the query string")
+            self.assertIn(str(row["id"]), q["facts"][0])
+            for key in ("title", "check", "facts"):
+                self.assertTrue(q[key][0].strip(), f"{key} arrived empty for check {row['id']}")
+            self.assertLess(len(row["url"]), 8000,
+                            "GitHub answers 414 above roughly 8k; this row's prefill is too big")
+        for key in ("check", "facts"):
+            self.assertIn(key, ids,
+                          f"the page prefills `{key}`, which is not a field id in check-report.yml "
+                          f"-- GitHub silently ignores an unknown key, so the form would open "
+                          f"EMPTY and nobody would be told")
+
+    # -- the issue form itself ---------------------------------------------
+    def test_the_issue_form_is_valid_and_its_prefilled_fields_are_text(self):
+        form = self._form()
+        self.assertTrue(form.get("name") and form.get("description"))
+        self.assertIn("player-report", form.get("labels", []))
+        by_id = {b["id"]: b for b in form["body"] if b.get("id")}
+        self.assertEqual(len(by_id), len([b for b in form["body"] if b.get("id")]),
+                         "duplicate field ids; GitHub prefill keys on the id")
+        for key in ("check", "facts"):
+            self.assertIn(key, by_id, f"check-report.yml has no `{key}` field for the browser to "
+                                      f"prefill")
+            self.assertIn(by_id[key]["type"], ("input", "textarea"),
+                          f"`{key}` is a {by_id[key]['type']}; only input and textarea prefill "
+                          f"from a URL query, so this one would open blank")
+        self.assertEqual("dropdown", by_id["symptom"]["type"])
+        self.assertNotIn("symptom", ("check", "facts"))
+        for b in form["body"]:
+            self.assertIn(b["type"], ("markdown", "input", "textarea", "dropdown", "checkboxes"))
+            self.assertTrue(b.get("attributes"), f"{b.get('id')} has no attributes block")
+
+    def test_the_form_asks_the_questions_triage_always_ends_up_asking(self):
+        """Not decoration. Every one of these has cost a round trip in a real report: the build
+        (the version string alone does not identify it), the yaml, and the log -- which is APPENDED
+        across sessions, so the form has to say so or the wrong session gets pasted."""
+        by_id = {b["id"]: b for b in self._form()["body"] if b.get("id")}
+        for key in ("symptom", "what", "version", "yaml", "log"):
+            self.assertIn(key, by_id)
+        self.assertIn("F6", by_id["version"]["attributes"]["description"])
+        self.assertIn("SESSION START", by_id["log"]["attributes"]["description"])
+        opts = by_id["symptom"]["attributes"]["options"]
+        joined = " | ".join(opts).lower()
+        for want in ("never fired", "vanilla", "reach", "wrong region"):
+            self.assertIn(want, joined, f"the symptom list dropped `{want}`")
+
+
+@unittest.skipUnless(RUNNING_FROM_REPO, REPO_ONLY_REASON)
+class SweepClauseIsEligibilityNotAPromise(unittest.TestCase):
+    """E. #936 -- the page must not tell a seedless reader that a boss GRANTS a check.
+
+    THE MOTIVATING CASE (rule 11), colombius on Discord, 2026-08-27. He read
+
+        Mountaintops of the Giants :: Golden Seed - near Foot of the Forge, by two snow
+        trolls, also granted by Fire Giant (m60_52_52) [f1052537800]
+
+    and the Fire Giant did not hand it over. Nothing was broken: the check is tagged
+    `Seedtree`, `Seedtree` is in SURFACE_DEFAULT_CLASSES and in
+    features/boss_locks._SWEEP_SURFACE_CUTTABLE, so `sweep_surface_cut` correctly took it back
+    out of the Fire Giant sweep for that seed -- that is where the seed hid its Locks. The NAME
+    said otherwise, because names ride the static AP datapackage and cannot vary per seed.
+
+    This page is the seedless surface: it is built once from the corpus and has no
+    `dungeon_sweep` rung and no `progression_surface` to consult. So it may state ELIGIBILITY
+    and must not state a grant. (The in-game client holds the seed truth in slot_data
+    `dungeonSweepFlags` and filters the clause outright -- er_logic::sweep_clause.)
+    """
+
+    COLOMBIUS_AP = 7773183
+    COLOMBIUS_FLAG = 1052537800
+    # The OLD wording -- used as a guard to make sure it does not sneak back into names.
+    OPENER = ", also granted by "
+
+    @classmethod
+    def _corpus_opener(cls):
+        """The opener currently baked into data.py -- read from desc_sources, not hardcoded."""
+        import importlib.util as _iu
+        spec = _iu.spec_from_file_location(
+            "ds_corpus", os.path.join(GREENFIELD, "desc_sources.py"))
+        ds = _iu.module_from_spec(spec)
+        spec.loader.exec_module(ds)
+        return ds.SWEEP_CLAUSE_OPENER
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tool = _load_tool()
+        cls.tmp = tempfile.mkdtemp()
+        cls.checks = _payload(_build(os.path.join(cls.tmp, "e.html")))["checks"]
+        cls.by_id = {c["id"]: c for c in cls.checks}
+
+    def test_the_motivating_check_names_no_grant_and_keeps_its_identity(self):
+        c = self.by_id[self.COLOMBIUS_AP]
+        self.assertEqual(c["f"], self.COLOMBIUS_FLAG)
+        self.assertNotIn(self.OPENER, c["full"])
+        self.assertNotIn(self.OPENER, c["n"])
+        # the flag tail is the check's identity in logs and issue reports -- stripping the
+        # clause must not take it with it.
+        self.assertTrue(c["full"].endswith("[f%d]" % self.COLOMBIUS_FLAG), c["full"])
+        self.assertIn("near Foot of the Forge, by two snow trolls", c["full"])
+
+    def test_the_motivating_check_still_carries_the_boss_as_eligibility(self):
+        # the #670 answer to "so idk what boss to kill?" must survive the fix, or this trades
+        # one unusable surface for another.
+        self.assertEqual(self.by_id[self.COLOMBIUS_AP]["sw"], ["Fire Giant", "m60_52_52"])
+
+    def test_no_payload_name_anywhere_still_asserts_a_grant(self):
+        # WITNESS FIRST: "no name asserts a grant" is also what an empty page says, so pin that
+        # the scan is looking at the whole corpus and that it is looking at names that DID carry
+        # the clause -- otherwise this passes for the wrong reason the day the join breaks.
+        self.assertGreater(len(self.checks), 3000)
+        self.assertGreater(len([c for c in self.checks if c["sw"]]), 3000)
+        offenders = [c["id"] for c in self.checks
+                     if self.OPENER in c["full"] or self.OPENER in c["n"]]
+        self.assertFalse(offenders,
+                         "%d name(s) still assert a per-seed grant: %s"
+                         % (len(offenders), offenders[:5]))
+
+    def test_every_clause_the_corpus_bakes_was_recovered_not_just_deleted(self):
+        # A splitter that silently failed to match would look identical to one that worked, by
+        # the test above -- the clause would simply still be in the name. Pin the population:
+        # every corpus name carrying the clause must come back with a boss on the `sw` row.
+        corpus_opener = self._corpus_opener()
+        locs = self.tool.load_module_consts(
+            os.path.join(GF_PKG, "data.py"), {"LOCATIONS"})["LOCATIONS"]
+        baked = {a for v in locs.values() for (n, a, _f) in v if corpus_opener in n}
+        self.assertGreater(len(baked), 3000, "the corpus stopped baking the clause?")
+        lost = sorted(a for a in baked if not self.by_id[a]["sw"])
+        self.assertFalse(lost, "%d clause(s) dropped instead of recovered: %s"
+                              % (len(lost), lost[:5]))
+        # and the converse: `sw` is never invented for a name that never carried one.
+        invented = sorted(c["id"] for c in self.checks if c["sw"] and c["id"] not in baked)
+        self.assertFalse(invented, "sw invented for: %s" % invented[:5])
+
+    def test_the_page_says_the_seed_decides_rather_than_hiding_the_hedge(self):
+        html = open(os.path.join(REPO, "er-archipelago-check-browser.html"),
+                    encoding="utf-8").read()
+        self.assertIn("function sweepRow", html)
+        self.assertIn("dungeon_sweep", html)
+        self.assertIn("progression_surface", html)
+        # ...and the promise must not come back as UI chrome. Scoped to the DATA rather than
+        # the whole file: the only other occurrence is the source comment above `sweepRow`
+        # quoting the clause it exists to explain, and a test that forbade naming the thing
+        # would forbid documenting it.
+        payload = _payload(html)
+        self.assertNotIn("also granted by", json.dumps(payload))
+
+    def test_the_splitter_is_the_inverse_of_the_writer_it_sits_next_to(self):
+        # The splitter and `with_sweep` are two halves of one shape; the corpus test above only
+        # proves they agree on the shapes the corpus HAPPENS to contain today. This pins the
+        # contract itself, including the tile-less form `sweep_clause` also writes.
+        import importlib.util as _iu
+        spec = _iu.spec_from_file_location(
+            "ds_rt", os.path.join(GREENFIELD, "desc_sources.py"))
+        ds = _iu.module_from_spec(spec)
+        spec.loader.exec_module(ds)
+        for desc, boss, tile in (
+            ("near Foot of the Forge, by two snow trolls", "Fire Giant", "m60_52_52"),
+            ("On a tree near the road", "Night's Cavalry", None),
+            ("in a chest (region unconfirmed)", "Deathbird", "m60_44_53"),
+        ):
+            baked = "R :: I - %s [f7]" % ds.with_sweep(desc, boss, tile)
+            back, got_boss, got_tile = ds.split_sweep_clause(baked)
+            self.assertEqual(back, "R :: I - %s [f7]" % desc)
+            self.assertEqual(got_boss, boss)
+            self.assertEqual(got_tile, tile)
+        # a name that never carried a clause comes back untouched, boss None.
+        plain = "R :: I - just here [f7]"
+        self.assertEqual(ds.split_sweep_clause(plain), (plain, None, None))
+
+    def test_the_boss_stays_searchable(self):
+        # "which checks does Fire Giant sweep" is the question this page is asked; moving the
+        # name out of `n` must not move it out of the search haystack.
+        tpl = open(os.path.join(REPO, "tools", "check_browser_template.html"),
+                   encoding="utf-8").read()
+        hay = tpl.split("function haystack(c){", 1)[1].split("}", 1)[0]
+        self.assertIn("c.sw", hay)
+
+
 if __name__ == "__main__":
     unittest.main()
