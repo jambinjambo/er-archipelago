@@ -30,25 +30,26 @@ wrong change for this project.
 
 ```
 greenfield/eldenring/        THE APWORLD (ships as eldenring.apworld)
-  core.py            options, region graph, goal, item pool, slot_data assembly  (~1.7k lines)
+  core.py            options, region graph, goal, item pool, slot_data assembly  (~2.4k lines)
   registry.py        the Feature base class + hook aggregation
   features/*.py      54 self-registered feature modules — WHERE MOST WORK GOES
   contract.py        slot_data declarations + validate_slot_data + APWORLD_VERSION
   region_spine.py    SPINE order, REGION_PARENT, compute_kept (pure, no AP import)
   coverage.py        gen-time gate: every emitted check is detectable + suppressed
+  item_categories.py CATEGORY_CLASS + USEFUL_GOODS — the class/locality axis (see Traps)
   data.py, item_ids.py, item_tiers.py, location_tags.py, boss_*.py, shop_data.py,
   region_graces.py, region_open_flags.py, region_play_ids.py, missable_locations.py
                      ^^^ ALL GENERATED — never hand-edit (see below)
   tests/             223 test files, run via tools/gf_test.py
 greenfield/
-  gen_data.py        THE generator for every module above (8.8k lines)
+  gen_data.py        THE generator for every module above (11k lines)
   region_groups.py   play_region bucket -> region spine (curated, hand-owned)
   *.tsv, region_map.csv   curated generation inputs
   CONTRACT.md        generated from eldenring/contract.py
-tools/               datamine_* (artifact readers), build_*, check_* (CI gates), gf_test.py
+tools/               125 scripts: datamine_* (artifact readers), build_*, check_* (CI gates), gf_test.py
 wizard/              options wizard (static HTML) + generated options-metadata.json
 poptracker/          PopTracker pack (Lua)
-release/             player-facing docs, shipped EldenRing.yaml, changelog
+release/             player-facing docs, shipped EldenRing.yaml, BLURB-v*.md per release
 build.ps1            the whole Windows pipeline (regen / package / gen / rust / deploy / serve)
 run_ci.ps1           every automated gate in one command
 ```
@@ -104,13 +105,29 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
 .\bootstrap-ap.ps1                   # clone stock upstream Archipelago at the .ap-version pin
 ```
 
-### State of *this* checkout (verified 2026-08-24)
+**Two known-failing tests — do NOT chase them.**
+`test_gf_publish_channels.py::ChannelLedger::test_ledger_passes_its_own_gate` and
+`test_gf_unplaced_globals.py::UnplacedGlobals::test_the_emit_is_idempotent_against_a_placed_world`
+fail on a **pristine upstream checkout too** (verified 2026-08-25 by checking out
+`ebc3948a` and reproducing). A clean run reads
+`2 failed, ~3098 passed, 66 skipped` in ~16 min. Anything else is yours.
+
+**The suite takes ~16 minutes and reads the working tree the whole time.** If you
+background it, do not run `gen_data.py`, `git checkout` or
+`dump_options_metadata.py` until it finishes — doing so corrupts the run and
+produces failures that are artifacts of the mutation, not of the code. (That cost
+three runs on 2026-08-25; the tell was four `test_gf_upgrade_costs_runes`
+failures that vanished on a clean re-run.)
+
+The player-installed apworld on this box lives at
+`C:\ProgramData\Archipelago\custom_worlds\eldenring.apworld`.
+
+### State of *this* checkout (verified 2026-08-26)
 
 - **`elden_ring_artifacts/` IS present** → `python greenfield/gen_data.py` runs
   here, in about three minutes, and is byte-reproducible: a regen with no input
   change leaves an empty `git diff --ignore-all-space`. Run it whenever you touch
   a curated `.tsv` or the generator; never hand-edit the modules it writes.
-  (This entry said the opposite until 2026-08-24. It was wrong.)
 - **No `Archipelago/`, but `.ap-test/` is already bootstrapped** at the
   `.ap-version` pin (**0.6.7**), so `tools/gf_test.py` runs without a clone.
 - **Renaming a location re-rolls every seed.** `Location.__lt__` sorts by
@@ -119,23 +136,43 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
   ids are untouched. Upstream behaviour, not ours — but it means a name change is
   a seed-breaking change and belongs in a release window, not a patch.
 - **Synced to upstream `ebc3948a` on 2026-08-25** (APWORLD_VERSION **0.5.1**).
-  Two pulls got here: 748 commits to `7bf77dd` (0.4.14), then 43 more to 0.5.1.
-  Between them they landed `features/export_reservation.py` (#918, reserves this
-  world's uniformity share of useful exports into non-ER worlds),
-  `cross_game_progression` (#703/#811/#927, routes progression to partner games
-  BEFORE the ER surfaces get a look), `shop_checks` (#994), `coop_difficulty`
-  (#993), the three ability-lock options (#980) and `region_sync` (#1005). All
-  own ground a local option must not duplicate — check them before adding a lever.
-- 🛑 **`dungeon_sweep` ALREADY MEANS "kill the boss, get the key."** Measured
-  2026-08-25 over 5 seeds x 2 ER worlds: **125 of 137 progression items (91%)**
-  sit on a check an armed sweep hands over, because `SweepSlot` is in
-  `contract.SURFACE_DEFAULT_CLASSES`. A local `boss_progression` option was built
-  and then RETIRED (`a7de6f2c`) for exactly this reason. Do not rebuild it.
-- **The client submodule IS checked out**, at the upstream pin `3967d512`, and
-  `contract_gen.rs` expects `0.5.1`. Rust source and the `cargo` gates are
-  available locally. (This entry said the opposite until 2026-08-25.)
+  That pull landed `features/export_reservation.py` (#918, reserves this world's
+  uniformity share of useful exports into non-ER worlds), `cross_game_progression`
+  (#703/#811/#927, routes progression to partner games BEFORE the ER surfaces get
+  a look), `shop_checks` (#994), `coop_difficulty` (#993), the three ability-lock
+  options (#980) and `region_sync` (#1005). All own ground a local option must not
+  duplicate — check them before adding a lever.
+- **The client submodule IS checked out**, at pin `3967d512`
+  (`v0.2.18.diag-773-g3967d51`); `contract_gen.rs:216` expects apworld `0.5.1`.
+  Rust source and the `cargo` gates are available locally.
 - Local Python is **3.13**; CI runs **3.12**. Version-sensitive failures are
   plausible and worth ruling out before chasing a logic bug.
+
+---
+
+## Two questions measurement has already settled
+
+🛑 **`dungeon_sweep` ALREADY MEANS "kill the boss, get the key."** Its default rung
+is `bosses`, the widest. `boss_sweeps.py` carries 211 triggers / 4101 member links,
+median 14 members per boss. Measured 2026-08-25 over 5 seeds × 2 ER worlds:
+**125 of 137 progression items (91%)** sit on a check an armed sweep hands over,
+because `SweepSlot` is in `contract.SURFACE_DEFAULT_CLASSES`. A local
+`boss_progression` option was built and then RETIRED (`a7de6f2c`) for exactly this
+reason. **Do not rebuild it.**
+
+The sweep is kept from handing over the whole seed by a two-layer cut, machine-
+enforced by `tools/check_sweep_cut_partition.py` ("19 classes partition into 10
+never-sweepable + 6 surface-cuttable + 3 derived"):
+
+- `gen_data._SWEEP_NEVER_TAGS` (`gen_data.py:9506`) — Boss, Remembrance,
+  GreatRune, KeyItem, Shop. Cut at **bake** time; no option restores them.
+- `boss_locks._SWEEP_SURFACE_CUTTABLE` (`boss_locks.py:49`) — Seedtree, Church,
+  Fragment, Revered, Basin, Legendary. Cut **per seed** when the player's
+  Progression Surface claims the class.
+
+🛑 **`keep_local` is the item-sharing lever, not `filler_foreign_pct`.** See the
+first Trap below — raising `filler_foreign_pct` cannot move a Golden Seed no
+matter how high it goes.
 
 ---
 
@@ -149,11 +186,37 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
 | Change which checks exist / their flags | `gen_data.py` or a curated `.tsv` — never `data.py` |
 | Change region membership | `greenfield/region_groups.py` (bucket→region), then regenerate |
 | Retire a yaml knob but keep the behaviour | `defaults.py` `FROZEN_OPTIONS` — the option class stays declared so the contract keeps being emitted |
+| Retire a knob **entirely** | delete the class + its `OPTIONS` entry + its test file, drop the block from `release/EldenRing.yaml`, then `python tools/dump_options_metadata.py` to rewrite all three wizard copies and `presets/*.yaml`; `--check` must print `[ok]` |
 
 ---
 
 ## Traps this codebase has actually hit
 
+- **Item CLASS and item LOCALITY are orthogonal axes, and only one is a lever.**
+  `filler_foreign_pct` filters on `it.classification == filler`
+  (`features/filler_foreign.py:153`), so it can **never** move a USEFUL item.
+  `item_categories.USEFUL_GOODS` (`:422`) carves Golden Seed / Sacred Tear /
+  Scadutree Fragment / Revered Spirit Ash to USEFUL, and `CATEGORY_CLASS` (`:356`)
+  puts `crystal_tears` there too. The lever that shares those across worlds is
+  **`keep_local`**, which works on CATEGORIES — drop `crystal_tears` /
+  `upgrade_materials` from the list and they can travel.
+- Upstream `Main.py:103` does `non_local_items.value -= local_items.value`, so a
+  name in both lists is silently kept **local**. `keep_local` always wins.
+- **ER ships exactly one `item_name_group`, "Everything."** There is no
+  per-family carve-out available to a yaml.
+- **Stacked item variants escape `keep_local`** (unfixed as of 2026-08-25):
+  `Smithing Stone [2]` categorises as `upgrade_materials`, but
+  `Smithing Stone [2] x3` categorises as `progressive`, so a
+  `keep_local: [upgrade_materials]` does not cover it. Measured: singles cross
+  worlds 0/2140, stacks 95/329 (28.9%). Same shape as a bug already patched for
+  progressive bells.
+- **The "also granted by <Boss>" clause is baked into the check NAME** at
+  `gen_data` time from **pre-cut** membership. It does **not** prove the check is
+  swept in a given seed. To answer that, intersect the seed's armed triggers with
+  `DUNGEON_SWEEPS` and then apply the surface cut.
+- **Loading a generated module standalone via `importlib` gives wrong answers** —
+  `item_categories` returns `"progressive"` for everything when `ITEM_CATALOG` is
+  unpopulated. Import from `.ap-test/worlds/eldenring` instead.
 - `random` cannot be a `Choice` option name (AP reserves it); an old value name
   must survive as `alias_*`, because `Choice.from_text` **raises** on an unknown
   value in a yaml already in the wild.
@@ -170,6 +233,22 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
 
 ---
 
+## Helping a player debug their running game
+
+- **The version handshake is exact.** `contract_gen.rs:216` pins
+  `APWORLD_VERSION_EXPECTED`; a client refuses an apworld that does not match, so
+  upgrading the client mid-run means the seed's apworld must match too — i.e.
+  regenerating. Establish the player's client version *first*.
+- **Overlay:** F5 toggles the client's own windows (main + settings + console);
+  the menu bar has Console; console commands take a `!` prefix (`!give 0x…`).
+  F6 is the tracker, F7 traps.
+- **"Which build has the fix?"** — `release/BLURB-v*.md` is the per-release
+  changelog; confirm by walking the submodule gitlink with
+  `git log -p -- from-software-archipelago-clients` and finding the first bump
+  whose client commit contains the fix.
+
+---
+
 ## Docs, and what each is for
 
 | File | Use it for |
@@ -179,9 +258,20 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
 | `greenfield/CONTRACT.md` | every slot_data key, its shape, producer, and Rust consumer |
 | `PROVENANCE.md` | what may not enter the tree, and the gate for each rule |
 | `README.md`, `release/PLAYER-GUIDE.md` | the player-facing model |
+| `release/BLURB-v*.md` | what shipped in each release |
 | `docs/history/` | **superseded** — provenance only, do not follow its instructions |
 
 ⚠️ **`AGENTS.md` describes the maintainer's sandbox-clone workflow** (a Linux
 sandbox plus a read-forbidden Windows mount). That topology does not exist in
 this checkout — here you edit the working tree directly. Its *quality* guidance
 still applies; its git/mount procedure does not.
+
+---
+
+## Working style that has actually helped here
+
+- Ask in **plain prose**, not multiple-choice prompts, and prefer acting over
+  proposing a plan first.
+- **The real benchmark is a real generation.** The test suite is blind to
+  cross-game placement. When the question is *where items land*, roll seeds and
+  read the multidata/spoiler rather than reasoning from the code.
