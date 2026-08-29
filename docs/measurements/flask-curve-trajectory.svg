@@ -1,0 +1,329 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 984 526" width="984" height="526" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, &#x27;Segoe UI&#x27;, sans-serif">
+<title id="t">Flask power against enemy scaling</title><desc id="d">One panel per configuration and Elden Ring slot. Flask charges and potency are each a percentage of their own maximum; enemy is the seed&#x27;s own normalised regionSphereTargetRanges.</desc>
+<style>
+  svg {
+    --surface: #fcfcfb;
+    --plane: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --player: #2a78d6;
+    --enemy: #eb6834;
+    --flcharge: #2a78d6;
+    --fltear: #eb6834;
+    --flinert: #cfcdc4;
+    --reg-1: #86b6ef;
+    --reg-2: #5598e7;
+    --reg-3: #256abf;
+    --reg-4: #104281;
+    --som-1: #eda06e;
+    --som-2: #e0762f;
+    --som-3: #b85618;
+    --som-4: #7d3a10;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --player: #3987e5;
+    --enemy: #d95926;
+    --flcharge: #3987e5;
+    --fltear: #d95926;
+    --flinert: #4a4a46;
+    --reg-1: #184f95;
+    --reg-2: #2a78d6;
+    --reg-3: #6da7ec;
+    --reg-4: #b7d3f6;
+    --som-1: #8a3d17;
+    --som-2: #c25a22;
+    --som-3: #e8894e;
+    --som-4: #f6bd9c;
+    }
+  }
+  .ink { fill: var(--ink); }
+  .ink2 { fill: var(--ink2); }
+  .muted { fill: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+</style>
+<rect width="100%" height="100%" fill="var(--plane)"/>
+<text x="26.0" y="30.0" font-size="18" text-anchor="start" class="ink" font-weight="600">Flask power against enemy scaling</text>
+<text x="26.0" y="50.0" font-size="12.5" text-anchor="start" class="ink2">Charges over their 4-to-14 range, potency over 0-to-12, enemy over its own ceiling.</text>
+<text x="26.0" y="66.0" font-size="12.5" text-anchor="start" class="ink2">Flat early means the flask is done climbing while the run is not.</text>
+<line x1="26.0" x2="42.0" y1="85.0" y2="85.0" stroke="var(--flcharge)" stroke-width="3" stroke-linecap="round"/>
+<text x="48.0" y="88.0" font-size="12" text-anchor="start" class="ink2">Flask charges (of 14)</text>
+<line x1="216.0" x2="232.0" y1="85.0" y2="85.0" stroke="var(--flcharge)" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 3"/>
+<text x="238.0" y="88.0" font-size="12" text-anchor="start" class="ink2">Flask potency (of 12)</text>
+<line x1="406.0" x2="422.0" y1="85.0" y2="85.0" stroke="var(--fltear)" stroke-width="3" stroke-linecap="round"/>
+<text x="428.0" y="88.0" font-size="12" text-anchor="start" class="ink2">Enemy scaling (% of ceiling)</text>
+<rect x="26.0" y="104.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="39.0" y="124.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER1  today</text>
+<text x="313.0" y="124.0" font-size="9.5" text-anchor="end" class="muted mono">tiered</text>
+<line x1="66.0" x2="286.0" y1="268.0" y2="268.0" stroke="var(--axis)"/>
+<text x="60.0" y="271.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="66.0" x2="286.0" y1="235.5" y2="235.5" stroke="var(--grid)"/>
+<text x="60.0" y="238.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="66.0" x2="286.0" y1="203.0" y2="203.0" stroke="var(--grid)"/>
+<text x="60.0" y="206.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="66.0" x2="286.0" y1="170.5" y2="170.5" stroke="var(--grid)"/>
+<text x="60.0" y="173.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="66.0" x2="286.0" y1="138.0" y2="138.0" stroke="var(--grid)"/>
+<text x="60.0" y="141.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="66.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="139.3" y="285.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="212.7" y="285.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="286.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="66.0,216.0 102.7,216.0 139.3,203.0 176.0,190.0 212.7,190.0 249.3,190.0 286.0,190.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="66.0" cy="216.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="216.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="203.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="193.4" font-size="10" text-anchor="start" class="ink2 mono">10</text>
+<polyline points="66.0,235.5 102.7,224.7 139.3,213.8 176.0,213.8 212.7,213.8 249.3,213.8 286.0,213.8" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="66.0" cy="235.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="224.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="217.2" font-size="10" text-anchor="start" class="ink2 mono">+5</text>
+<polyline points="66.0,230.9 102.7,212.3 139.3,193.7 176.0,175.1 212.7,175.1 249.3,156.6 286.0,156.6" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="66.0" cy="230.9" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="212.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="193.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="160.0" font-size="10" text-anchor="start" class="ink2 mono">86%</text>
+<rect x="342.0" y="104.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="355.0" y="124.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER1  step0</text>
+<text x="629.0" y="124.0" font-size="9.5" text-anchor="end" class="muted mono">tiered</text>
+<line x1="382.0" x2="602.0" y1="268.0" y2="268.0" stroke="var(--axis)"/>
+<text x="376.0" y="271.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="382.0" x2="602.0" y1="235.5" y2="235.5" stroke="var(--grid)"/>
+<text x="376.0" y="238.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="382.0" x2="602.0" y1="203.0" y2="203.0" stroke="var(--grid)"/>
+<text x="376.0" y="206.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="382.0" x2="602.0" y1="170.5" y2="170.5" stroke="var(--grid)"/>
+<text x="376.0" y="173.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="382.0" x2="602.0" y1="138.0" y2="138.0" stroke="var(--grid)"/>
+<text x="376.0" y="141.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="382.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="455.3" y="285.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="528.7" y="285.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="602.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="382.0,229.0 418.7,190.0 455.3,164.0 492.0,138.0 528.7,138.0 565.3,138.0 602.0,138.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="382.0" cy="229.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="164.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="141.4" font-size="10" text-anchor="start" class="ink2 mono">14</text>
+<polyline points="382.0,246.3 418.7,203.0 455.3,192.2 492.0,170.5 528.7,170.5 565.3,159.7 602.0,159.7" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="382.0" cy="246.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="203.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="192.2" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="170.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="170.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="159.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="159.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="163.1" font-size="10" text-anchor="start" class="ink2 mono">+10</text>
+<polyline points="382.0,230.9 418.7,212.3 455.3,193.7 492.0,175.1 528.7,175.1 565.3,156.6 602.0,156.6" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="382.0" cy="230.9" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="212.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="193.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="160.0" font-size="10" text-anchor="start" class="ink2 mono">86%</text>
+<rect x="658.0" y="104.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="671.0" y="124.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER1  graded</text>
+<text x="945.0" y="124.0" font-size="9.5" text-anchor="end" class="muted mono">ladder</text>
+<line x1="698.0" x2="918.0" y1="268.0" y2="268.0" stroke="var(--axis)"/>
+<text x="692.0" y="271.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="698.0" x2="918.0" y1="235.5" y2="235.5" stroke="var(--grid)"/>
+<text x="692.0" y="238.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="698.0" x2="918.0" y1="203.0" y2="203.0" stroke="var(--grid)"/>
+<text x="692.0" y="206.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="698.0" x2="918.0" y1="170.5" y2="170.5" stroke="var(--grid)"/>
+<text x="692.0" y="173.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="698.0" x2="918.0" y1="138.0" y2="138.0" stroke="var(--grid)"/>
+<text x="692.0" y="141.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="698.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="771.3" y="285.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="844.7" y="285.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="918.0" y="285.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="698.0,203.0 734.7,190.0 771.3,164.0 808.0,151.0 844.7,138.0 881.3,138.0 918.0,138.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="698.0" cy="203.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="190.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="164.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="151.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="138.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="141.4" font-size="10" text-anchor="start" class="ink2 mono">14</text>
+<polyline points="698.0,224.7 734.7,213.8 771.3,192.2 808.0,170.5 844.7,170.5 881.3,159.7 918.0,159.7" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="698.0" cy="224.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="213.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="192.2" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="170.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="170.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="159.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="159.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="163.1" font-size="10" text-anchor="start" class="ink2 mono">+10</text>
+<polyline points="698.0,230.9 734.7,212.3 771.3,193.7 808.0,175.1 844.7,175.1 881.3,156.6 918.0,156.6" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="698.0" cy="230.9" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="212.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="193.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="175.1" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="156.6" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="160.0" font-size="10" text-anchor="start" class="ink2 mono">86%</text>
+<rect x="26.0" y="310.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="39.0" y="330.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER2  today</text>
+<text x="313.0" y="330.0" font-size="9.5" text-anchor="end" class="muted mono">tiered</text>
+<line x1="66.0" x2="286.0" y1="474.0" y2="474.0" stroke="var(--axis)"/>
+<text x="60.0" y="477.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="66.0" x2="286.0" y1="441.5" y2="441.5" stroke="var(--grid)"/>
+<text x="60.0" y="444.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="66.0" x2="286.0" y1="409.0" y2="409.0" stroke="var(--grid)"/>
+<text x="60.0" y="412.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="66.0" x2="286.0" y1="376.5" y2="376.5" stroke="var(--grid)"/>
+<text x="60.0" y="379.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="66.0" x2="286.0" y1="344.0" y2="344.0" stroke="var(--grid)"/>
+<text x="60.0" y="347.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="66.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="139.3" y="491.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="212.7" y="491.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="286.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="66.0,422.0 102.7,409.0 139.3,396.0 176.0,396.0 212.7,396.0 249.3,396.0 286.0,396.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="66.0" cy="422.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="409.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="399.4" font-size="10" text-anchor="start" class="ink2 mono">10</text>
+<polyline points="66.0,474.0 102.7,474.0 139.3,474.0 176.0,452.3 212.7,452.3 249.3,452.3 286.0,452.3" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="66.0" cy="474.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="474.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="474.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="452.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="452.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="452.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="452.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="455.7" font-size="10" text-anchor="start" class="ink2 mono">+2</text>
+<polyline points="66.0,452.3 102.7,430.7 139.3,387.3 176.0,387.3 212.7,365.7 249.3,365.7 286.0,365.7" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="66.0" cy="452.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="102.7" cy="430.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="139.3" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="176.0" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="212.7" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="249.3" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="286.0" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="293.0" y="369.1" font-size="10" text-anchor="start" class="ink2 mono">83%</text>
+<rect x="342.0" y="310.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="355.0" y="330.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER2  step0</text>
+<text x="629.0" y="330.0" font-size="9.5" text-anchor="end" class="muted mono">tiered</text>
+<line x1="382.0" x2="602.0" y1="474.0" y2="474.0" stroke="var(--axis)"/>
+<text x="376.0" y="477.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="382.0" x2="602.0" y1="441.5" y2="441.5" stroke="var(--grid)"/>
+<text x="376.0" y="444.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="382.0" x2="602.0" y1="409.0" y2="409.0" stroke="var(--grid)"/>
+<text x="376.0" y="412.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="382.0" x2="602.0" y1="376.5" y2="376.5" stroke="var(--grid)"/>
+<text x="376.0" y="379.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="382.0" x2="602.0" y1="344.0" y2="344.0" stroke="var(--grid)"/>
+<text x="376.0" y="347.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="382.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="455.3" y="491.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="528.7" y="491.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="602.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="382.0,435.0 418.7,409.0 455.3,396.0 492.0,370.0 528.7,370.0 565.3,370.0 602.0,357.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="382.0" cy="435.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="409.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="357.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="360.4" font-size="10" text-anchor="start" class="ink2 mono">13</text>
+<polyline points="382.0,441.5 418.7,430.7 455.3,419.8 492.0,387.3 528.7,387.3 565.3,387.3 602.0,387.3" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="382.0" cy="441.5" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="430.7" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="419.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="390.7" font-size="10" text-anchor="start" class="ink2 mono">+8</text>
+<polyline points="382.0,452.3 418.7,430.7 455.3,387.3 492.0,387.3 528.7,365.7 565.3,365.7 602.0,365.7" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="382.0" cy="452.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="418.7" cy="430.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="455.3" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="528.7" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="565.3" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="602.0" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="609.0" y="369.1" font-size="10" text-anchor="start" class="ink2 mono">83%</text>
+<rect x="658.0" y="310.0" width="300.0" height="190.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="671.0" y="330.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">ER2  graded</text>
+<text x="945.0" y="330.0" font-size="9.5" text-anchor="end" class="muted mono">ladder</text>
+<line x1="698.0" x2="918.0" y1="474.0" y2="474.0" stroke="var(--axis)"/>
+<text x="692.0" y="477.4" font-size="9" text-anchor="end" class="muted mono">0%</text>
+<line x1="698.0" x2="918.0" y1="441.5" y2="441.5" stroke="var(--grid)"/>
+<text x="692.0" y="444.9" font-size="9" text-anchor="end" class="muted mono">25%</text>
+<line x1="698.0" x2="918.0" y1="409.0" y2="409.0" stroke="var(--grid)"/>
+<text x="692.0" y="412.4" font-size="9" text-anchor="end" class="muted mono">50%</text>
+<line x1="698.0" x2="918.0" y1="376.5" y2="376.5" stroke="var(--grid)"/>
+<text x="692.0" y="379.9" font-size="9" text-anchor="end" class="muted mono">75%</text>
+<line x1="698.0" x2="918.0" y1="344.0" y2="344.0" stroke="var(--grid)"/>
+<text x="692.0" y="347.4" font-size="9" text-anchor="end" class="muted mono">100%</text>
+<text x="698.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="771.3" y="491.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="844.7" y="491.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="918.0" y="491.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<polyline points="698.0,409.0 734.7,396.0 771.3,396.0 808.0,370.0 844.7,370.0 881.3,370.0 918.0,357.0" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="698.0" cy="409.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="396.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="370.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="357.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="360.4" font-size="10" text-anchor="start" class="ink2 mono">13</text>
+<polyline points="698.0,419.8 734.7,419.8 771.3,409.0 808.0,398.2 844.7,398.2 881.3,387.3 918.0,387.3" fill="none" stroke="var(--flcharge)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>
+<circle cx="698.0" cy="419.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="419.8" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="409.0" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="398.2" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="398.2" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="387.3" r="3.1" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="390.7" font-size="10" text-anchor="start" class="ink2 mono">+8</text>
+<polyline points="698.0,452.3 734.7,430.7 771.3,387.3 808.0,387.3 844.7,365.7 881.3,365.7 918.0,365.7" fill="none" stroke="var(--fltear)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="698.0" cy="452.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="734.7" cy="430.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="771.3" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="808.0" cy="387.3" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="844.7" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="881.3" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="918.0" cy="365.7" r="3.1" fill="var(--fltear)" stroke="var(--surface)" stroke-width="2"/>
+<text x="925.0" y="369.1" font-size="10" text-anchor="start" class="ink2 mono">83%</text>
+</svg>

@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 804 474" width="804" height="474" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, &#x27;Segoe UI&#x27;, sans-serif">
+<title id="t">Flask progression across 10 runs</title><desc id="d">Rows are the flask&#x27;s two axes, columns are the two configurations. Each faint line is one Elden Ring slot of one generated multiworld; the solid line is the median across slots. Dashed rules mark each axis&#x27;s maximum.</desc>
+<style>
+  svg {
+    --surface: #fcfcfb;
+    --plane: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --player: #2a78d6;
+    --enemy: #eb6834;
+    --flcharge: #2a78d6;
+    --fltear: #eb6834;
+    --flinert: #cfcdc4;
+    --reg-1: #86b6ef;
+    --reg-2: #5598e7;
+    --reg-3: #256abf;
+    --reg-4: #104281;
+    --som-1: #eda06e;
+    --som-2: #e0762f;
+    --som-3: #b85618;
+    --som-4: #7d3a10;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+    --surface: #1a1a19;
+    --plane: #0d0d0d;
+    --ink: #ffffff;
+    --ink2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --player: #3987e5;
+    --enemy: #d95926;
+    --flcharge: #3987e5;
+    --fltear: #d95926;
+    --flinert: #4a4a46;
+    --reg-1: #184f95;
+    --reg-2: #2a78d6;
+    --reg-3: #6da7ec;
+    --reg-4: #b7d3f6;
+    --som-1: #8a3d17;
+    --som-2: #c25a22;
+    --som-3: #e8894e;
+    --som-4: #f6bd9c;
+    }
+  }
+  .ink { fill: var(--ink); }
+  .ink2 { fill: var(--ink2); }
+  .muted { fill: var(--muted); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+</style>
+<rect width="100%" height="100%" fill="var(--plane)"/>
+<text x="26.0" y="30.0" font-size="18" text-anchor="start" class="ink" font-weight="600">Flask progression across 10 runs</text>
+<text x="26.0" y="50.0" font-size="12.5" text-anchor="start" class="ink2">One faint line per Elden Ring slot; the solid line is the median of those slots.</text>
+<text x="26.0" y="66.0" font-size="12.5" text-anchor="start" class="ink2">The dashed rule is the cap on that axis -- the most the game will ever give you.</text>
+<rect x="26.0" y="74.0" width="368.0" height="176.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="39.0" y="94.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">Flask charges  -  flasks off (your yaml)</text>
+<text x="381.0" y="94.0" font-size="9.5" text-anchor="end" class="muted mono">10 slots</text>
+<line x1="68.0" x2="348.0" y1="224.0" y2="224.0" stroke="var(--axis)"/>
+<text x="62.0" y="227.4" font-size="9" text-anchor="end" class="muted mono">4</text>
+<line x1="68.0" x2="348.0" y1="165.0" y2="165.0" stroke="var(--grid)"/>
+<text x="62.0" y="168.4" font-size="9" text-anchor="end" class="muted mono">9</text>
+<line x1="68.0" x2="348.0" y1="106.0" y2="106.0" stroke="var(--grid)"/>
+<text x="62.0" y="109.4" font-size="9" text-anchor="end" class="muted mono">14</text>
+<line x1="68.0" x2="348.0" y1="106.0" y2="106.0" stroke="var(--muted)" stroke-dasharray="4 4"/>
+<text x="68.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="148.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="228.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="308.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<text x="348.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">7</text>
+<text x="62.0" y="241.0" font-size="8" text-anchor="end" class="muted mono">sph</text>
+<polyline points="68.0,188.6 108.0,176.8 148.0,176.8 188.0,153.2 228.0,153.2 268.0,141.4 308.0,141.4 348.0,141.4" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,176.8 148.0,176.8 188.0,153.2 228.0,141.4 268.0,141.4 308.0,141.4 348.0,141.4" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,188.6 148.0,165.0 188.0,165.0 228.0,153.2 268.0,141.4 308.0,129.6 348.0,129.6" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,200.4 148.0,176.8 188.0,165.0 228.0,153.2 268.0,153.2 308.0,117.8 348.0,117.8" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,200.4 148.0,176.8 188.0,176.8 228.0,165.0 268.0,153.2 308.0,153.2 348.0,153.2" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,188.6 148.0,176.8 188.0,176.8 228.0,153.2 268.0,141.4 308.0,141.4 348.0,141.4" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,212.2 108.0,200.4 148.0,188.6 188.0,153.2 228.0,141.4 268.0,129.6 308.0,129.6 348.0,129.6" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,176.8 148.0,165.0 188.0,153.2 228.0,129.6 268.0,129.6 308.0,129.6 348.0,129.6" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,176.8 108.0,165.0 148.0,153.2 188.0,141.4 228.0,129.6 268.0,129.6 308.0,129.6 348.0,129.6" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,176.8 148.0,165.0 188.0,165.0 228.0,165.0 268.0,165.0 308.0,165.0 348.0,165.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,200.4 108.0,182.7 148.0,176.8 188.0,159.1 228.0,153.2 268.0,141.4 308.0,135.5 348.0,135.5" fill="none" stroke="var(--flcharge)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="68.0" cy="200.4" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="108.0" cy="182.7" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="148.0" cy="176.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="188.0" cy="159.1" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="228.0" cy="153.2" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="268.0" cy="141.4" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="308.0" cy="135.5" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="348.0" cy="135.5" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="355.0" y="138.9" font-size="10" text-anchor="start" class="ink2 mono">med 11.5</text>
+<rect x="410.0" y="74.0" width="368.0" height="176.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="423.0" y="94.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">Flask charges  -  flasks on</text>
+<text x="765.0" y="94.0" font-size="9.5" text-anchor="end" class="muted mono">10 slots</text>
+<line x1="452.0" x2="732.0" y1="224.0" y2="224.0" stroke="var(--axis)"/>
+<text x="446.0" y="227.4" font-size="9" text-anchor="end" class="muted mono">4</text>
+<line x1="452.0" x2="732.0" y1="165.0" y2="165.0" stroke="var(--grid)"/>
+<text x="446.0" y="168.4" font-size="9" text-anchor="end" class="muted mono">9</text>
+<line x1="452.0" x2="732.0" y1="106.0" y2="106.0" stroke="var(--grid)"/>
+<text x="446.0" y="109.4" font-size="9" text-anchor="end" class="muted mono">14</text>
+<line x1="452.0" x2="732.0" y1="106.0" y2="106.0" stroke="var(--muted)" stroke-dasharray="4 4"/>
+<text x="452.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="532.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="612.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="692.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<text x="732.0" y="241.0" font-size="9" text-anchor="middle" class="muted mono">7</text>
+<text x="446.0" y="241.0" font-size="8" text-anchor="end" class="muted mono">sph</text>
+<polyline points="452.0,200.4 492.0,176.8 532.0,176.8 572.0,129.6 612.0,117.8 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,200.4 492.0,200.4 532.0,176.8 572.0,117.8 612.0,106.0 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,212.2 532.0,176.8 572.0,153.2 612.0,153.2 652.0,129.6 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,200.4 532.0,153.2 572.0,129.6 612.0,117.8 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,212.2 532.0,176.8 572.0,176.8 612.0,141.4 652.0,141.4 692.0,141.4 732.0,141.4" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,188.6 492.0,188.6 532.0,153.2 572.0,141.4 612.0,117.8 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,176.8 532.0,153.2 572.0,117.8 612.0,106.0 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,188.6 532.0,165.0 572.0,117.8 612.0,106.0 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,188.6 492.0,153.2 532.0,129.6 572.0,106.0 612.0,106.0 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,176.8 532.0,165.0 572.0,153.2 612.0,141.4 652.0,141.4 692.0,141.4 732.0,141.4" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,212.2 492.0,188.6 532.0,165.0 572.0,129.6 612.0,117.8 652.0,106.0 692.0,106.0 732.0,106.0" fill="none" stroke="var(--flcharge)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="452.0" cy="212.2" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="188.6" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="532.0" cy="165.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="572.0" cy="129.6" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="612.0" cy="117.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="652.0" cy="106.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="692.0" cy="106.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="732.0" cy="106.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="739.0" y="109.4" font-size="10" text-anchor="start" class="ink2 mono">med 14</text>
+<rect x="26.0" y="266.0" width="368.0" height="176.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="39.0" y="286.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">Flask potency  -  flasks off (your yaml)</text>
+<text x="381.0" y="286.0" font-size="9.5" text-anchor="end" class="muted mono">10 slots</text>
+<line x1="68.0" x2="348.0" y1="416.0" y2="416.0" stroke="var(--axis)"/>
+<text x="62.0" y="419.4" font-size="9" text-anchor="end" class="muted mono">0</text>
+<line x1="68.0" x2="348.0" y1="357.0" y2="357.0" stroke="var(--grid)"/>
+<text x="62.0" y="360.4" font-size="9" text-anchor="end" class="muted mono">6</text>
+<line x1="68.0" x2="348.0" y1="298.0" y2="298.0" stroke="var(--grid)"/>
+<text x="62.0" y="301.4" font-size="9" text-anchor="end" class="muted mono">12</text>
+<line x1="68.0" x2="348.0" y1="298.0" y2="298.0" stroke="var(--muted)" stroke-dasharray="4 4"/>
+<text x="68.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="148.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="228.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="308.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<text x="348.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">7</text>
+<text x="62.0" y="433.0" font-size="8" text-anchor="end" class="muted mono">sph</text>
+<polyline points="68.0,406.2 108.0,396.3 148.0,396.3 188.0,386.5 228.0,376.7 268.0,366.8 308.0,366.8 348.0,366.8" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,386.5 108.0,376.7 148.0,376.7 188.0,366.8 228.0,366.8 268.0,366.8 308.0,366.8 348.0,366.8" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,416.0 108.0,416.0 148.0,406.2 188.0,396.3 228.0,396.3 268.0,376.7 308.0,376.7 348.0,376.7" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,406.2 108.0,406.2 148.0,406.2 188.0,406.2 228.0,396.3 268.0,396.3 308.0,366.8 348.0,366.8" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,406.2 108.0,406.2 148.0,396.3 188.0,396.3 228.0,396.3 268.0,396.3 308.0,396.3 348.0,396.3" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,396.3 108.0,396.3 148.0,376.7 188.0,357.0 228.0,337.3 268.0,327.5 308.0,327.5 348.0,327.5" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,396.3 108.0,366.8 148.0,347.2 188.0,337.3 228.0,327.5 268.0,327.5 308.0,327.5 348.0,327.5" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,416.0 108.0,416.0 148.0,396.3 188.0,396.3 228.0,396.3 268.0,386.5 308.0,386.5 348.0,386.5" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,386.5 108.0,376.7 148.0,366.8 188.0,366.8 228.0,366.8 268.0,357.0 308.0,357.0 348.0,357.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,416.0 108.0,396.3 148.0,396.3 188.0,396.3 228.0,396.3 268.0,396.3 308.0,396.3 348.0,396.3" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="68.0,406.2 108.0,396.3 148.0,396.3 188.0,391.4 228.0,386.5 268.0,371.8 308.0,366.8 348.0,366.8" fill="none" stroke="var(--flcharge)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="68.0" cy="406.2" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="108.0" cy="396.3" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="148.0" cy="396.3" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="188.0" cy="391.4" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="228.0" cy="386.5" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="268.0" cy="371.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="308.0" cy="366.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="348.0" cy="366.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="355.0" y="370.2" font-size="10" text-anchor="start" class="ink2 mono">med 5</text>
+<rect x="410.0" y="266.0" width="368.0" height="176.0" rx="4" fill="var(--surface)" stroke="var(--grid)"/>
+<text x="423.0" y="286.0" font-size="11.5" text-anchor="start" class="ink mono" font-weight="600">Flask potency  -  flasks on</text>
+<text x="765.0" y="286.0" font-size="9.5" text-anchor="end" class="muted mono">10 slots</text>
+<line x1="452.0" x2="732.0" y1="416.0" y2="416.0" stroke="var(--axis)"/>
+<text x="446.0" y="419.4" font-size="9" text-anchor="end" class="muted mono">0</text>
+<line x1="452.0" x2="732.0" y1="357.0" y2="357.0" stroke="var(--grid)"/>
+<text x="446.0" y="360.4" font-size="9" text-anchor="end" class="muted mono">6</text>
+<line x1="452.0" x2="732.0" y1="298.0" y2="298.0" stroke="var(--grid)"/>
+<text x="446.0" y="301.4" font-size="9" text-anchor="end" class="muted mono">12</text>
+<line x1="452.0" x2="732.0" y1="298.0" y2="298.0" stroke="var(--muted)" stroke-dasharray="4 4"/>
+<text x="452.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">0</text>
+<text x="532.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">2</text>
+<text x="612.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">4</text>
+<text x="692.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">6</text>
+<text x="732.0" y="433.0" font-size="9" text-anchor="middle" class="muted mono">7</text>
+<text x="446.0" y="433.0" font-size="8" text-anchor="end" class="muted mono">sph</text>
+<polyline points="452.0,396.3 492.0,386.5 532.0,376.7 572.0,347.2 612.0,327.5 652.0,307.8 692.0,307.8 732.0,307.8" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,396.3 492.0,396.3 532.0,386.5 572.0,337.3 612.0,307.8 652.0,298.0 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,406.2 492.0,406.2 532.0,376.7 572.0,366.8 612.0,366.8 652.0,337.3 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,416.0 492.0,406.2 532.0,366.8 572.0,337.3 612.0,337.3 652.0,327.5 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,416.0 492.0,406.2 532.0,386.5 572.0,386.5 612.0,357.0 652.0,347.2 692.0,347.2 732.0,347.2" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,386.5 492.0,386.5 532.0,357.0 572.0,357.0 612.0,327.5 652.0,298.0 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,416.0 492.0,386.5 532.0,357.0 572.0,337.3 612.0,307.8 652.0,298.0 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,406.2 492.0,386.5 532.0,366.8 572.0,337.3 612.0,298.0 652.0,298.0 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,396.3 492.0,366.8 532.0,337.3 572.0,307.8 612.0,307.8 652.0,298.0 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,406.2 492.0,376.7 532.0,376.7 572.0,366.8 612.0,357.0 652.0,357.0 692.0,357.0 732.0,357.0" fill="none" stroke="var(--flcharge)" stroke-width="1" stroke-opacity="0.30" stroke-linejoin="round"/>
+<polyline points="452.0,406.2 492.0,386.5 532.0,371.8 572.0,342.2 612.0,327.5 652.0,302.9 692.0,298.0 732.0,298.0" fill="none" stroke="var(--flcharge)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="452.0" cy="406.2" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="492.0" cy="386.5" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="532.0" cy="371.8" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="572.0" cy="342.2" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="612.0" cy="327.5" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="652.0" cy="302.9" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="692.0" cy="298.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<circle cx="732.0" cy="298.0" r="3" fill="var(--flcharge)" stroke="var(--surface)" stroke-width="2"/>
+<text x="739.0" y="301.4" font-size="10" text-anchor="start" class="ink2 mono">med 12</text>
+</svg>
