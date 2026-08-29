@@ -40,13 +40,13 @@ greenfield/eldenring/        THE APWORLD (ships as eldenring.apworld)
   data.py, item_ids.py, item_tiers.py, location_tags.py, boss_*.py, shop_data.py,
   region_graces.py, region_open_flags.py, region_play_ids.py, missable_locations.py
                      ^^^ ALL GENERATED — never hand-edit (see below)
-  tests/             223 test files, run via tools/gf_test.py
+  tests/             231 test files, run via tools/gf_test.py
 greenfield/
   gen_data.py        THE generator for every module above (11k lines)
   region_groups.py   play_region bucket -> region spine (curated, hand-owned)
   *.tsv, region_map.csv   curated generation inputs
   CONTRACT.md        generated from eldenring/contract.py
-tools/               125 scripts: datamine_* (artifact readers), build_*, check_* (CI gates), gf_test.py
+tools/               138 scripts: datamine_* (artifact readers), build_*, check_* (CI gates), gf_test.py
 wizard/              options wizard (static HTML) + generated options-metadata.json
 poptracker/          PopTracker pack (Lua)
 release/             player-facing docs, shipped EldenRing.yaml, BLURB-v*.md per release
@@ -105,29 +105,42 @@ python tools/gf_test.py -k shops     # extra args pass through to pytest
 .\bootstrap-ap.ps1                   # clone stock upstream Archipelago at the .ap-version pin
 ```
 
-**Two known-failing tests — do NOT chase them.**
-`test_gf_publish_channels.py::ChannelLedger::test_ledger_passes_its_own_gate` and
-`test_gf_unplaced_globals.py::UnplacedGlobals::test_the_emit_is_idempotent_against_a_placed_world`
-fail on a **pristine upstream checkout too** (verified 2026-08-25 by checking out
-`ebc3948a` and reproducing). A clean run reads
-`2 failed, ~3098 passed, 66 skipped` in ~16 min. Anything else is yours.
+**Three known-failing tests — do NOT chase them.** A clean run reads
+`3 failed, 3387 passed, 67 skipped` in ~15 min (2026-08-29). Anything else is yours.
 
-**The suite takes ~16 minutes and reads the working tree the whole time.** If you
+- `test_gf_publish_channels.py::ChannelLedger::test_ledger_passes_its_own_gate` and
+  `test_gf_unplaced_globals.py::UnplacedGlobals::test_the_emit_is_idempotent_against_a_placed_world`
+  fail on a **pristine upstream checkout too** (verified 2026-08-25 against `ebc3948a`).
+- `test_gf_check_browser.py::ReportAProblemLink::test_the_url_is_well_formed_for_sampled_rows`
+  fails on **pristine `origin/main`** (verified 2026-08-29 in a detached worktree). A check name
+  carrying **U+00B7 MIDDLE DOT** — `Altus :: Boltdrake Talisman +1 - treasure · Old Altus Tunnel`
+  — does not survive the issue-report URL round trip. The page-side assembly in
+  `check_browser_template.html` uses `encodeURIComponent`, which handles it correctly, so the
+  fault is on the other side. Unfixed.
+
+**The suite takes ~15 minutes and reads the working tree the whole time.** If you
 background it, do not run `gen_data.py`, `git checkout` or
 `dump_options_metadata.py` until it finishes — doing so corrupts the run and
 produces failures that are artifacts of the mutation, not of the code. (That cost
 three runs on 2026-08-25; the tell was four `test_gf_upgrade_costs_runes`
-failures that vanished on a clean re-run.)
+failures that vanished on a clean re-run. It cost a fourth on 2026-08-29 — editing
+a docstring in `features/` mid-run produced a phantom `test_gf_academy_key_chandelier`
+failure that passed in isolation. **Editing ANY file under `greenfield/` counts**,
+not just the three commands named above.)
 
 The player-installed apworld on this box lives at
 `C:\ProgramData\Archipelago\custom_worlds\eldenring.apworld`.
 
-### State of *this* checkout (verified 2026-08-26)
+### State of *this* checkout (verified 2026-08-29)
 
-- **`elden_ring_artifacts/` IS present** → `python greenfield/gen_data.py` runs
-  here, in about three minutes, and is byte-reproducible: a regen with no input
-  change leaves an empty `git diff --ignore-all-space`. Run it whenever you touch
-  a curated `.tsv` or the generator; never hand-edit the modules it writes.
+- **`elden_ring_artifacts/` IS present, and it IS the Patch 1.17 set** →
+  `python greenfield/gen_data.py` runs here in about three minutes and is
+  byte-reproducible. Run it whenever you touch a curated `.tsv` or the generator, and
+  after any merge that brings both a generator change and a data refresh; never
+  hand-edit the modules it writes. Regenerating also invalidates everything DERIVED
+  from the check corpus — rebuild `build_check_browser.py`, `build_desc_triage.py`,
+  `build_questline_dag.py`, `build_questline_model.py` and
+  `build_region_second_opinion_page.py`, or their tier-A staleness gates go red.
 - **No `Archipelago/`, but `.ap-test/` is already bootstrapped** at the
   `.ap-version` pin (**0.6.7**), so `tools/gf_test.py` runs without a clone.
 - **Renaming a location re-rolls every seed.** `Location.__lt__` sorts by
@@ -135,16 +148,27 @@ The player-installed apworld on this box lives at
   before shuffling, so a changed check NAME permutes the fill even though the AP
   ids are untouched. Upstream behaviour, not ours — but it means a name change is
   a seed-breaking change and belongs in a release window, not a patch.
-- **Synced to upstream `ebc3948a` on 2026-08-25** (APWORLD_VERSION **0.5.1**).
-  That pull landed `features/export_reservation.py` (#918, reserves this world's
-  uniformity share of useful exports into non-ER worlds), `cross_game_progression`
-  (#703/#811/#927, routes progression to partner games BEFORE the ER surfaces get
-  a look), `shop_checks` (#994), `coop_difficulty` (#993), the three ability-lock
-  options (#980) and `region_sync` (#1005). All own ground a local option must not
-  duplicate — check them before adding a lever.
-- **The client submodule IS checked out**, at pin `3967d512`
-  (`v0.2.18.diag-773-g3967d51`); `contract_gen.rs:216` expects apworld `0.5.1`.
-  Rust source and the `cargo` gates are available locally.
+- **Merged `origin/main` on 2026-08-29** (APWORLD_VERSION **0.5.3**), 122 commits.
+  The tree now carries **Elden Ring Patch 1.17** data: **4928 locations, 2361 catalog
+  items, 211 sweeps**. Earlier pulls landed `features/export_reservation.py` (#918),
+  `cross_game_progression` (#703/#811/#927), `shop_checks` (#994), `coop_difficulty`
+  (#993), the three ability-lock options (#980) and `region_sync` (#1005); 0.5.2/0.5.3
+  added the Tarnished Pack checks and the ability-lock default flip. All own ground a
+  local option must not duplicate — check them before adding a lever.
+- 🛑 **THE CLIENT SUBMODULE IS BEHIND ITS OWN GITLINK.** The gitlink is `6bba5c31`
+  (whose `contract_gen.rs` expects apworld **0.5.3**, matching this tree), but the
+  working checkout is still `3967d512` (`v0.2.18.diag-773-g3967d51`), which expects
+  **0.5.1** — so the client built from what is on disk right now would REFUSE a seed
+  generated from this tree. It also carries uncommitted Rust (`core.rs`,
+  `reconcile_io.rs`, `region_lock.rs`). `git submodule status` prints a leading `+`
+  for exactly this. Commit or stash that Rust FIRST, then `git submodule update`, before
+  trusting a cargo gate or a version handshake.
+- **Local work not yet in a release window**: `graded_progression` (opt-in; stones,
+  somber stones, flasks and bells as paced ladders) and the stretched flask schedule
+  (`progressive.flask_schedule`, which changes `progressive_flasks` — ON BY DEFAULT).
+  Both RE-ROLL SEEDS. `release/CHANGELOG.md` files them under `## Unreleased`;
+  they need a version bump and a client pin before they ship. Charts backing both
+  live in `docs/measurements/` (`tools/plot_upgrade_curve.py` regenerates them).
 - Local Python is **3.13**; CI runs **3.12**. Version-sensitive failures are
   plausible and worth ruling out before chasing a logic bug.
 
@@ -153,7 +177,7 @@ The player-installed apworld on this box lives at
 ## Two questions measurement has already settled
 
 🛑 **`dungeon_sweep` ALREADY MEANS "kill the boss, get the key."** Its default rung
-is `bosses`, the widest. `boss_sweeps.py` carries 211 triggers / 4101 member links,
+is `bosses`, the widest. `boss_sweeps.py` carries 211 triggers / 4104 member links,
 median 14 members per boss. Measured 2026-08-25 over 5 seeds × 2 ER worlds:
 **125 of 137 progression items (91%)** sit on a check an armed sweep hands over,
 because `SweepSlot` is in `contract.SURFACE_DEFAULT_CLASSES`. A local
@@ -210,10 +234,31 @@ matter how high it goes.
   `keep_local: [upgrade_materials]` does not cover it. Measured: singles cross
   worlds 0/2140, stacks 95/329 (28.9%). Same shape as a bug already patched for
   progressive bells.
-- **The "also granted by <Boss>" clause is baked into the check NAME** at
-  `gen_data` time from **pre-cut** membership. It does **not** prove the check is
-  swept in a given seed. To answer that, intersect the seed's armed triggers with
-  `DUNGEON_SWEEPS` and then apply the surface cut.
+- **The sweep clause is baked into the check NAME** at `gen_data` time from **pre-cut**
+  membership. It does **not** prove the check is swept in a given seed. To answer that,
+  intersect the seed's armed triggers with `DUNGEON_SWEEPS` and then apply the surface cut.
+  🛑 **ITS WORDING HAS MOVED ONCE AND WILL AGAIN.** It read `"also granted by <Boss>"` until
+  #936 (`c59c460d`) reworded it to `", may be sweep-granted by <Boss> (<map>)"` across 4,063
+  names at a stroke, because a clause states ELIGIBILITY, not a grant. Anything that parses a
+  check name must strip it and must have a WITNESS that the strip still fires — see
+  `tests/test_gf_boss_check_names._SWEEP_CLAUSE`, which was silently returning the clause as
+  the descriptor until the rewording merged in.
+- 🛑 **A `STALE` gen-input stamp is NOT evidence about the game version.**
+  `gen_manifest.compute_inputs_hash` covers the curated `greenfield/*.tsv` inputs and the
+  manifest's own `FILE_INPUTS`/`GLOB_INPUTS` definition, not just `elden_ring_artifacts/`, so any
+  branch that touches a `.tsv` — or merges a manifest change — reads STALE with byte-identical
+  artifacts. To answer "which Elden Ring version is on disk", walk the committed bundle instead:
+  `gen_inputs.db` has a `files` table of `(path, size, sha256, blob)`; compare each against
+  `elden_ring_artifacts/<path>`. Measured 2026-08-29: **2076 of 2076 matched the 1.17 bundle**,
+  against 1424 of 1452 for the pre-1.17 one. Reading the hash as a version signal produced a
+  confident "do not regenerate" that was exactly backwards.
+- **`run_ci.ps1` reports FALSE failures for any step whose child writes to stderr.**
+  Windows PowerShell 5.1 turns a native command's stderr into an ErrorRecord, so
+  `Invoke-CiStep`'s `catch` fires on OUTPUT, not on exit code. The tell is the message: a step
+  that "threw" `HEAD is now at debe4cf...` (that is `git checkout`) or `.........` (that is
+  pytest). Re-run the step's own command directly before believing it. Its `GREENFIELD-FUZZ`
+  step also defaults `-ApDir` to a nonexistent `Archipelago/`; run
+  `python greenfield/fuzz_gf.py --count 25 --pass-pct 100 --ap .ap-test` by hand.
 - **Loading a generated module standalone via `importlib` gives wrong answers** —
   `item_categories` returns `"progressive"` for everything when `ITEM_CATALOG` is
   unpopulated. Import from `.ap-test/worlds/eldenring` instead.
