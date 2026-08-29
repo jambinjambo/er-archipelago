@@ -498,7 +498,15 @@ _OPTION_GROUPS = [
         "global_scadutree_blessing"]),
     ("Difficulty & Scaling", [
         "enemy_scaling", "minimum_enemy_difficulty", "maximum_enemy_difficulty",
-        "difficulty_ramp_speed", "coop_difficulty", "traps", "spawn_traps", "trap_count"]),
+        "difficulty_ramp_speed",
+        # graded_progression is filed HERE and not under "Checks & Item Pool", even though its
+        # mechanism is a pool substitution. The four keys above it ramp the ENEMY over the seed's
+        # depth; this one ramps the PLAYER over the same axis, and a run where those two curves
+        # diverge is the difficulty complaint it was built for -- "we became supremely powerful
+        # after the first or second region and then decimated every boss" (Alaric, 2026-08-27).
+        # A player who comes looking for that reads this group, not the recipe.
+        "graded_progression",
+        "coop_difficulty", "traps", "spawn_traps", "trap_count"]),
     ("Checks & Item Pool", [
         "dungeon_sweep", "reroll_enemy_drops",
         "protect_missable_locations", "armor_bundles",
@@ -1179,18 +1187,53 @@ class GreenfieldEldenRingWorld(World):
         return GFItem(name, self._class_for(name),
                       self.item_name_to_id[name], self.player)
 
+    def _varied_filler_pool(self) -> List[str]:
+        """FILLER_POOL minus the names this seed must not hand out. Cached per world.
+
+        TWO FILTERS, AND THE SECOND ONE IS THE FOURTH DOOR (2026-08-28).
+
+        DLC exclusion is the old one: a DLC good in a DLC-off seed.
+
+        SUBSTITUTED NAMES are the new one, and they are the reason this became a method. A
+        progressive ladder replaces a family of vanilla pickups so the Kth copy RECEIVED grants
+        rung K -- and FILLER_POOL holds all 17 tiered smithing stones (`filler_upgrade_weight`
+        below weights on exactly them), so under `graded_progression` the varied-filler draw was
+        quietly minting the very tiers the ladder exists to pace. One `Somber Smithing Stone [9]`
+        out of the junk draw is the whole bypass, arriving through the one door neither
+        substitution nor the economy reservation can see.
+
+        🛑 ASKS THE SUBSTITUTION MAP, not `graded_progression`. `vanilla_substitutions` already
+        answers "which vanilla names may not be in this pool this seed", and deriving the filter
+        from it means the next ladder is covered the day it is written rather than the day someone
+        notices. The flask and the bells happen to be safe today only because no Golden Seed, Sacred
+        Tear or Miner's Bell Bearing is in FILLER_POOL -- an accident of what counts as junk, not a
+        guarantee, and #539 is what happens when that kind of accident is relied on.
+        """
+        cached = getattr(self, "_gf_varied_filler_pool", None)
+        if cached is not None:
+            return cached
+        _excl = set(getattr(self, "gf_dlc_excluded", ()))
+        from .features.progressive import vanilla_substitutions as _subs_of
+        _excl |= set(_subs_of(self))
+        out = [x for x in FILLER_POOL if x not in _excl] if _excl else list(FILLER_POOL)
+        self._gf_varied_filler_pool = out
+        return out
+
     def _pick_filler(self) -> str:
         """Varied real-junk filler (greases/boluses/butterflies/...) when varied_filler is on and the
         pool resolved; else the monotone Rune. All FILLER_POOL items are ITEM_CATALOG goods (registered,
         filler-classified, client-grantable), so this is count-neutral and fill-safe. Deterministic."""
         vf = getattr(self.options, "varied_filler", None)
         if vf is not None and vf.value and FILLER_POOL:
-            _excl = getattr(self, "gf_dlc_excluded", ())
-            _pool = [x for x in FILLER_POOL if x not in _excl] if _excl else FILLER_POOL
+            _pool = self._varied_filler_pool()
             if _pool:
                 # B: over-weight smithing/somber upgrade stones when filler_upgrade_weight > 1, so the
                 # measured standard-weapon starvation can be tuned away (count-neutral -- only WHICH
                 # filler item is chosen). Uniform when weight == 1 (default).
+                # INERT UNDER A STONE LADDER, correctly: _varied_filler_pool has already dropped
+                # every tiered stone name, so there is nothing left for this to over-weight. The
+                # ladder replaces the lever rather than competing with it -- density stops being the
+                # question once the tier is decided on receipt.
                 _w = getattr(self.options, "filler_upgrade_weight", None)
                 _wt = int(_w.value) if _w is not None else 1
                 if _wt > 1:
@@ -2391,6 +2434,7 @@ class GreenfieldEldenRingWorld(World):
         if _os.environ.get("ER_GF_DUMP_SPHERES") and self.player == min(self.multiworld.player_ids):
             try:
                 per_player = {}
+                received = {}
                 for sidx, locset in enumerate(self.multiworld.get_spheres()):
                     for loc in locset:
                         it = loc.item
@@ -2400,9 +2444,24 @@ class GreenfieldEldenRingWorld(World):
                         while len(pl) <= sidx:
                             pl.append([])
                         pl[sidx].append(it.name)
+                        # ---- THE RECEIVE VIEW, keyed on the item's OWNER (2026-08-28) ------------
+                        # `spheres` above answers "what sits in world X". That is the right question
+                        # for pool composition and the WRONG one for a power curve: a progressive
+                        # ladder advances on the copy REACHING you, and under filler_foreign_pct most
+                        # of a slot's own filler sits in other people's worlds. Reading the power
+                        # curve off `spheres` would therefore measure the stones a player never gets
+                        # and miss every one they do. Both views are cheap here (one walk, already
+                        # paid for), so emit both rather than making the consumer guess.
+                        if it.player in self.multiworld.player_ids:
+                            rp = received.setdefault(
+                                self.multiworld.get_player_name(it.player), [])
+                            while len(rp) <= sidx:
+                                rp.append([])
+                            rp[sidx].append(it.name)
                 fn = _os.path.join(output_directory, f"GF_SPHERES_{self.multiworld.seed_name}.json")
                 with open(fn, "w", encoding="utf-8") as _f:
-                    _json.dump({"seed": str(self.multiworld.seed_name), "spheres": per_player}, _f)
+                    _json.dump({"seed": str(self.multiworld.seed_name),
+                                "spheres": per_player, "received": received}, _f)
                 print(f"[greenfield] ER_GF_DUMP_SPHERES -> {fn}")
             except Exception as _e:
                 print(f"[greenfield] ER_GF_DUMP_SPHERES dump failed: {_e!r}")

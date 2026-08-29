@@ -844,6 +844,38 @@ Elden Ring:
   #   100   maximum almost immediately
   difficulty_ramp_speed: 0
 
+  # GRADED PROGRESSION -- pace YOUR power to your progress through the multiworld.
+  # The three options above ramp the ENEMIES over the regions you unlock. This is
+  # the other half of that curve, and it is the answer to "we hit maximum weapon
+  # power two regions in and then flattened every boss for the rest of the run".
+  #
+  # On: smithing stones, bell bearings, Golden Seeds and Sacred Tears stop being
+  # interchangeable pickups and become LADDERS. The Nth one you RECEIVE grants the
+  # Nth rung -- so early stones are low-tier and usable, and the top of the
+  # smithing ladder only opens once the multiworld has handed you most of your
+  # stones. You still get enough stone in reach of the start to afford +3; what
+  # changes is that the REST of the supply can no longer arrive as a +8 stone.
+  #
+  # It works wherever your stones ended up. A rung is counted when the item
+  # reaches YOU, so stones sitting in other players' worlds still arrive in ladder
+  # order -- you do not need keep_local for this, and you should not use it.
+  #
+  # It switches progressive_flasks and progressive_stone_bells ON for you (the
+  # generation log says so): a loose Miner's Bell Bearing is a permanent unlimited
+  # shop unlock for a whole tier band and would walk straight past the ladder.
+  #
+  # Mining ore nodes and the Twin Maidens' shop still work normally: ore already
+  # drops the tier that fits the area you are in, and the shop opens one tier band
+  # per bell rung, so both already ramp the way this does.
+  #
+  # COST: your reachable weapon level now scales with the size of the seed, so a
+  # small num_regions run tops out lower than it does today. That is deliberate --
+  # maximum_enemy_difficulty: auto already lowers the ENEMY ceiling the same way.
+  # Ignored under vanilla_pool and vanilla_placement, which promise the opposite.
+  #     false   off -- stones are tiered pickups as today   (default)
+  #     true    on
+  graded_progression: false
+
   # SEAMLESS CO-OP difficulty. Extra enemy tiers per co-op partner in your world.
   # Solo play ignores it. Seamless raises enemy HP but leaves enemy DAMAGE at the
   # host default, so a partner halves the threat without enemies hitting harder;

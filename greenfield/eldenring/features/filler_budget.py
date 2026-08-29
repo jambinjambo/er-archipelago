@@ -198,7 +198,29 @@ def early_guarantee(world) -> Dict[str, int]:
     the start. Derived from both ladders; no magic numbers, one named margin."""
     out: Dict[str, int] = {}
     reg = _regular_stone_need(_flatten(world))
-    out[f"Smithing Stone [1]"] = reg[1] * EARLY_GUARANTEE_MARGIN
+    n_reg = reg[1] * EARLY_GUARANTEE_MARGIN
+    n_somber = sum(_somber_stone_need(EARLY_TARGET_LEVEL).values()) * EARLY_GUARANTEE_MARGIN
+    if _graded_on(world):
+        # ONE NAME EACH, because under graded_progression the tiered names are not in the pool at
+        # all -- declaring them would declare a guarantee AP can never pay, and `declare_early_items`
+        # would clamp to zero and warn about a shortfall that is really a rename.
+        #
+        # ⭐ AND THE SOMBER COUNT IS CONVERTED, not copied. The comment on `_somber_stone_need`
+        # calls targeting the same EARLY_TARGET_LEVEL on both tracks "GENEROUS to somber ... somber
+        # +3 is roughly regular +7.5 in effective terms". `progressive.regular_to_somber` makes that
+        # exact: regular +3 is somber ONE (+2), so the graded guarantee asks for one tier's worth,
+        # not three. The un-graded branch below keeps the old reading deliberately -- changing it
+        # would move `local_early_items` on every default seed, which is a separate decision from
+        # adding an option.
+        #
+        # THE FLOOR IS UNCHANGED AND THE CEILING IS THE NEW PART. This is worth being explicit about,
+        # because it is the whole shape of the feature: `local_early_items` still puts enough stone
+        # in reach of the start to afford +EARLY_TARGET_LEVEL, exactly as it does today. What graded
+        # progression adds is that the REST of the supply can no longer arrive as tier 8.
+        from .progressive import (PROG_SMITHING_STONE, PROG_SOMBER_STONE, regular_to_somber)
+        n_somber = max(1, regular_to_somber(EARLY_TARGET_LEVEL)) * EARLY_GUARANTEE_MARGIN
+        return {PROG_SMITHING_STONE: n_reg, PROG_SOMBER_STONE: n_somber}
+    out[f"Smithing Stone [1]"] = n_reg
     for tier, n in _somber_stone_need(EARLY_TARGET_LEVEL).items():
         out[f"Somber Smithing Stone [{tier}]"] = n * EARLY_GUARANTEE_MARGIN
     return out
@@ -220,7 +242,16 @@ def declare_early_items(world, pool_names: List[str]) -> Dict[str, int]:
     Returns what it actually declared (diagnostics / tests)."""
     want = early_guarantee(world)
     excl = set(getattr(world, "gf_dlc_excluded", ()))
-    want = {nm: n for nm, n in want.items() if nm in ITEM_CATALOG and nm not in excl and n > 0}
+    # 🛑 THE MINTED LADDER NAMES ARE NOT IN ITEM_CATALOG, and this filter would drop them silently.
+    # ITEM_CATALOG is the VANILLA catalog (name -> game FullID); a progressive item is a feature-
+    # minted AP name with no catalog row, exactly like `Progressive Flask Upgrade`. Filtering on it
+    # is right for the tiered names (a name the game does not have cannot be granted) and wrong for
+    # these, so admit anything the WORLD registered as an item instead -- which is the question this
+    # filter was always really asking. No stone is DLC-only, so the exclusion check is a no-op here
+    # and is kept only so a future DLC-gated ladder cannot slip past it.
+    _known = getattr(world, "item_name_to_id", None) or {}
+    want = {nm: n for nm, n in want.items()
+            if (nm in ITEM_CATALOG or nm in _known) and nm not in excl and n > 0}
     if not want:
         return {}
 
@@ -413,7 +444,14 @@ def allocate(world, total: int) -> Dict[str, int]:
     # simply has a small tail. That is not an error (a 1-region seed is allowed to be lean), but it is
     # exactly the condition that shipped a +0-weapon playtest, and it must never again pass in silence.
     stones = alloc.get("stones", 0)
-    if stones > 0:
+    if _graded_on(world):
+        # Under graded_progression the reservation buys LADDER RUNGS, so "how many of these are
+        # tier 1" has no answer -- the tier is decided on receipt. The count still matters and is
+        # still reported, by features/progressive.set_rules, which names the ladder length and the
+        # tier the seed tops out at. Warning here about a tier-1 share would be a number about a
+        # mechanism this seed is not running.
+        pass
+    elif stones > 0:
         weights = _regular_stone_weights(_flatten(world))
         tier1 = stones * weights[1] / sum(weights.values())
         floor = early_stone_supply(world)
@@ -438,7 +476,36 @@ def _members(world, cat: str) -> List[str]:
     return [m for m in CATEGORIES.get(cat, ()) if m in ITEM_CATALOG and m not in excl]
 
 
+def _graded_on(world) -> bool:
+    from .graded_progression import is_on as _gp_on   # local: graded_progression imports nothing here
+    return _gp_on(world)
+
+
 def _draw_stones(world, n: int, somber: bool) -> List[str]:
+    # ---- graded_progression: the reservation buys LADDER RUNGS, not tiers (2026-08-28) ----------
+    # THE SECOND SOURCE. features/progressive substitutes the stones the item-shuffle walk reads;
+    # this is the other place stones enter a seed, and it has to mint the same item or the pool holds
+    # a tiered economy sitting beside the ladder -- which is not a weaker ladder, it is a bypassed
+    # one (the #539 shape, for the third time).
+    #
+    # 🛑 EVERY TIER MECHANISM BELOW IS DELIBERATELY SKIPPED, not accidentally bypassed. The taper,
+    # the tier-1 early floor and `_somber_coverage_floor` all exist to answer "does the POOL hold the
+    # right MIX of tiers", and a ladder makes that question meaningless: the tier of a rung is
+    # decided when the player receives it, so the mix is generated in order and no tier can be
+    # absent. What survives is the COUNT -- `allocate` still sizes this reservation, and the count is
+    # now the ladder's LENGTH, i.e. how far up the reinforce track this seed can take you. So the
+    # somber reservation floor keeps mattering for a reason it did not have before, and the early
+    # guarantee below still buys the first rungs.
+    #
+    # ⭐ IT DRAWS NOTHING, and that is a deliberate MOVE of the RNG stream -- confined to seeds that
+    # turn the option on. There is no mix to sample: every copy is the same item and the tier is
+    # decided on receipt. CLAUDE.md's "do not move the RNG stream" rule is about not re-rolling seeds
+    # that already exist, and no existing seed sets this option; with it off, this branch is not
+    # taken and the draw below is untouched, which is what `GradedOff` and test_gf_off_means_off pin.
+    if _graded_on(world):
+        from .progressive import PROG_SMITHING_STONE, PROG_SOMBER_STONE
+        return [PROG_SOMBER_STONE if somber else PROG_SMITHING_STONE] * n
+
     weights = _somber_stone_weights() if somber else _regular_stone_weights(_flatten(world))
     label = "Somber Smithing Stone" if somber else "Smithing Stone"
     tiers = [t for t in weights if f"{label} [{t}]" in ITEM_CATALOG]

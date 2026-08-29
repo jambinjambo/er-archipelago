@@ -151,11 +151,19 @@ def present_roster(world) -> set:
 def _toggle_dropped(world) -> frozenset:
     """Roster names another feature owns this seed, so this floor must NOT inject them (#539).
 
-    Only one so far: with `progressive_stone_bells` on, the bell bearings are the progressive
-    ladder's rungs and a loose vanilla copy is the top rung handed over in one pickup. See this
-    module's docstring -- the guarantee is kept, features/progressive just keeps it instead."""
-    o = getattr(world.options, "progressive_stone_bells", None)
-    return BELL_BEARING_ITEMS if (o is not None and o.value) else frozenset()
+    Only one so far: with the bell ladder on, the bell bearings are the progressive ladder's rungs
+    and a loose vanilla copy is the top rung handed over in one pickup. See this module's docstring
+    -- the guarantee is kept, features/progressive just keeps it instead.
+
+    🛑 ASKS `progressive._bells_on`, NOT `world.options.progressive_stone_bells` (2026-08-28).
+    `graded_progression` forces the bell ladder on without moving the yaml value, and AP cannot tell
+    an explicit `false` from the default it filled in -- so reading the raw option here would inject
+    a vanilla bearing into a graded seed for every bearing whose home region was not kept, which is
+    precisely the #539 bypass this hand-off exists to close, re-opened through the one door
+    substitution never reaches. One predicate, asked once, exactly as the docstring's "both edits are
+    required" note demands."""
+    from . import progressive as _prog
+    return BELL_BEARING_ITEMS if _prog._bells_on(world) else frozenset()
 
 
 def absent_roster(world) -> List[str]:

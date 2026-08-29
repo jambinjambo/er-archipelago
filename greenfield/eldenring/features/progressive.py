@@ -93,10 +93,11 @@ count-neutral fill (slots = total_locations - len(pool)) means each copy displac
 tail item, keeping the pool count-exact.
 """
 import itertools
+import logging
 from typing import Any, Dict, List
 
 from BaseClasses import ItemClassification
-from Options import Toggle
+from Options import OptionError, Toggle
 from ..registry import Feature, register
 from .. import contract
 
@@ -105,9 +106,9 @@ try:  # the flask leveled-ladder length follows the kept Golden Seed / Sacred Te
 except Exception:
     HUB, LOCATIONS = "Roundtable Hold", {}
 try:
-    from ..item_ids import LOCATION_ITEM
-except Exception:
-    LOCATION_ITEM = {}
+    from ..item_ids import ITEM_CATALOG, LOCATION_ITEM
+except Exception:  # pre-regen: no catalog -> the stone ladders resolve empty and say so loudly
+    ITEM_CATALOG, LOCATION_ITEM = {}, {}
 
 _GOODS_NIBBLE = 0x40000000  # ER FullID category nibble for GOODS (mirrors core._GOODS_NIBBLE)
 _GOOD_SACRED_TEAR = 10020    # vanilla EquipParamGoods id for Sacred Tear (FullID 0x40000000|10020 =
@@ -120,6 +121,22 @@ PROG_FLASK = "Progressive Flask Upgrade"
 PROG_STONESWORD_KEY = "Progressive Stonesword Key"
 PROG_SMITHING_BELL = "Progressive Smithing-Stone Miner's Bell Bearing"
 PROG_SOMBER_BELL = "Progressive Somberstone Miner's Bell Bearing"
+# graded_progression (2026-08-28). The LOOSE stone economy as two ladders -- see the stone-ladder
+# section below for why the tier has to be a receive-count and not a placement.
+#
+# 🛑 BOTH NAMES CONTAIN THE SUBSTRING "Smithing Stone", AND THAT IS LOAD-BEARING.
+# `filler_curation._ECONOMY_SUBSTR` protects the placed upgrade economy from junk seizure by
+# substring, so these inherit that protection for free and core's extras-sort ranks a substituted
+# copy PROTECTED (rank 1) exactly as it ranks the tiered stone it replaced. Rename either one out of
+# that substring and the filler tail may displace the ladder it is meant to be pacing.
+PROG_SMITHING_STONE = "Progressive Smithing Stone"
+PROG_SOMBER_STONE = "Progressive Somber Smithing Stone"
+
+# The two un-numbered stones that finish each track: +24 -> +25 for standard weapons, +9 -> +10 for
+# somber. They are ladder RUNGS, not loose items -- see the equivalence note on SOMBER_TO_REGULAR
+# for why leaving them out left the two tracks topping out at different power.
+ANCIENT_REGULAR = "Ancient Dragon Smithing Stone"
+ANCIENT_SOMBER = "Somber Ancient Dragon Smithing Stone"
 
 # ---- vanilla goods ladders (RE-EXPRESSED vanilla EquipParamGoods ids; matt-free) --------------
 # Fungible flasks repeat the same good up to the vanilla max; the stonesword key repeats good 8000.
@@ -176,6 +193,13 @@ DLC_ONLY_FLASK_COPIES = 24
 
 
 def _flasks_on(world) -> bool:
+    # graded_progression OVERRIDES this toggle rather than requiring it (2026-08-28). Its whole
+    # premise is that every power track is paced, and 43 interchangeable Golden Seeds is the flask
+    # half of the jagged curve it exists to fix. Rejecting the combination instead would reject the
+    # shipped template, because ProgressiveFlasks.default is 1 and AP cannot tell an explicit `false`
+    # from a filled-in default -- see features/graded_progression.py's OVERRIDE, NOT REJECT note.
+    if _stones_on(world):
+        return True
     o = getattr(world.options, "progressive_flasks", None)
     return bool(o is not None and o.value)
 
@@ -344,11 +368,22 @@ def vanilla_substitutions(world) -> Dict[str, str]:
     added here leaves the pool everywhere by construction -- but only where core walks the vanilla
     items at all, which is why presence_floor needs its own guard (see the module docstring)."""
     subs: Dict[str, str] = {}
-    opt = getattr(world.options, "progressive_flasks", None)
-    if opt is not None and opt.value:
+    # 🛑 THE PREDICATE, NOT THE RAW OPTION -- the same door presence_floor had to close for the
+    # bells (#539), found open here on 2026-08-29 by reading a graded archive. `_flasks_on` is True
+    # whenever graded_progression is on, so flask_copy_count/flask_ladder/_grant_ladder all built a
+    # full ladder; this line asked the yaml instead, so a graded seed whose yaml said
+    # `progressive_flasks: false` shipped a 19-rung flaskLadder with ZERO copies in the pool to
+    # advance it. Not a crash -- the vanilla Golden Seeds still work vanilla-style -- which is
+    # exactly why it survived: the feature went silently dark and the seed looked fine.
+    if _flasks_on(world):
         subs.update({n: PROG_FLASK for n in VANILLA_FLASK_ITEMS})
     if _bells_on(world):
         subs.update(VANILLA_BELL_ITEMS)
+    if _stones_on(world):
+        # THREE ladders substitute here now, for the one reason stated above: a tiered stone left in
+        # the pool beside the ladder is a rung handed over out of order. This is also the half that
+        # takes the LOOSE stones out -- filler_budget._draw_stones takes the reserved ones.
+        subs.update(VANILLA_STONE_ITEMS)
     return subs
 
 # ---- progressive stone-bell grant ladders (shop-unlock flags only) ----------------------------
@@ -392,6 +427,19 @@ _POOL_COUNTS: Dict[str, int] = {
 
 
 def _bells_on(world) -> bool:
+    # graded_progression FORCES THIS ON, and this is the load-bearing one. A vanilla Miner's Bell
+    # Bearing is a permanent unlimited shop unlock for its whole tier band, so one early bearing
+    # sells the player past the stone ladder entirely -- the ladder would not be degraded, it would
+    # be BYPASSED, which is the #539 finding this module's docstring already records for the bells'
+    # own vanilla copies. A graded seed with loose bearings in it is not a weaker graded seed; it is
+    # an ungraded one wearing the option's name.
+    #
+    # 🛑 features/presence_floor.py MUST ASK THIS FUNCTION, not the raw option. It injects one copy
+    # of every roster bearing whose home region was not kept, so reading `progressive_stone_bells`
+    # directly there would re-open the bypass for exactly the bearings substitution never saw --
+    # the "both edits are required; either one alone leaves the bypass in place" note above, again.
+    if _stones_on(world):
+        return True
     o = getattr(world.options, "progressive_stone_bells", None)
     return bool(o is not None and o.value)
 
@@ -438,6 +486,369 @@ _BELL_EARLY_COUNT: Dict[str, int] = {
     PROG_SMITHING_BELL: 1,
     PROG_SOMBER_BELL: 1,
 }
+
+# ---- THE LOOSE STONE LADDERS (graded_progression, 2026-08-28) ----------------------------------
+# The bells above unlock the SHOP; these pace the stones the seed actually places. Both halves are
+# needed or neither works: a bell rung sells a whole tier band at will, and a loose `Smithing Stone
+# [8]` in sphere 0 skips the ladder outright. features/graded_progression.py carries the full
+# argument; the short version is that TIER IS RECEIVE-COUNT here, because there is no depth axis at
+# placement time (the region graph is a 1-deep star drawn at random) and the one feature that tried
+# to build one from fill spheres -- `stone_ramp` -- was deleted for it.
+#
+# Two sources feed one ladder, and both must, exactly as #539 established for the bells:
+#   * SUBSTITUTION -- `vanilla_substitutions` below rewrites every tiered stone the item-shuffle walk
+#     reads, so a vanilla stone check pays a rung instead of a tier;
+#   * THE ECONOMY RESERVATION -- `filler_budget._draw_stones` mints rungs instead of tiers.
+# Anything less leaves tiered stones in the pool beside the ladder, which is the bypass, not a
+# degrade.
+#
+# MULTI-COPY LOTS COLLAPSE TO ONE RUNG, BY CONSTRUCTION AND CORRECTLY. core.create_items applies
+# substitution to the BASE name and promotes to `<name> x<n>` afterwards (#616's deliberate order),
+# and `Progressive Smithing Stone x3` is not a registered name -- so a lot that vanilla drops three
+# stones on pays ONE rung. That is the right arithmetic for a ladder: a rung is a CHECK, and three
+# stones out of one chest should advance you once, not three times.
+VANILLA_STONE_ITEMS: Dict[str, str] = dict(
+    [("Smithing Stone [%d]" % t, PROG_SMITHING_STONE) for t in range(1, 9)]
+    + [("Somber Smithing Stone [%d]" % t, PROG_SOMBER_STONE) for t in range(1, 10)]
+    # The un-numbered top rung of each track. Left loose they would be the bell-bearing bypass in
+    # miniature -- a single pickup handing over the last level of a paced ladder.
+    + [(ANCIENT_REGULAR, PROG_SMITHING_STONE), (ANCIENT_SOMBER, PROG_SOMBER_STONE)]
+)
+
+# Tier count per track. MIRRORS filler_budget.STONE_TIERS / SOMBER_TIERS; the two are not imported
+# because filler_budget imports THIS module (for the names) and a module-level import back would
+# cycle. tests/test_gf_graded_progression.py diffs them, the same mirror-and-gate shape
+# scadu_supply.SCADU_CUM uses against the Rust ladder.
+STONE_TIERS = 8
+SOMBER_TIERS = 9
+REGULAR_MAX_LEVEL = 24          # the last level the NUMBERED regular tiers reach
+REGULAR_CAP_LEVEL = 25          # ...and the cap, once the Ancient Dragon step is counted
+
+# Pseudo-tiers for the un-numbered top rung of each track, so one integer can index every rung.
+ANCIENT_REGULAR_TIER = STONE_TIERS + 1      # 9  -> Ancient Dragon Smithing Stone, +25
+ANCIENT_SOMBER_TIER = SOMBER_TIERS + 1      # 10 -> Somber Ancient Dragon Smithing Stone, +10
+
+
+# ---- THE SOMBER <-> REGULAR EQUIVALENCE (Alaric, 2026-08-28) -------------------------------------
+# A somber weapon at +N is worth a standard weapon at floor(N * 2.5). Somber 1 is a regular +2,
+# somber 5 a +12, somber 10 a +25.
+#
+# ⭐ WHY IT MATTERS HERE. The two ladders are the same feature applied to two tracks, and without a
+# conversion they were paced independently: regular over its cost table, somber uniformly over its
+# tiers. Nothing said whether a player's somber weapon was ahead of or behind their standard one, so
+# switching weapons could jump or stall. The equivalence turns "how far along is this track" into
+# ONE number, and `somber_share_schedule` below paces somber against the regular curve with it.
+#
+# It also replaces a guess. features/filler_budget's `_somber_stone_need` says of the early
+# guarantee: "Targeting the same EARLY_TARGET_LEVEL for both is therefore GENEROUS to somber ...
+# somber +3 is roughly regular +7.5 in effective terms". Roughly is now exactly, and the answer is
+# that regular +3 is somber ONE.
+SOMBER_EQUIV_RATIO = 2.5
+
+
+def somber_to_regular(somber_level: int) -> int:
+    """A somber reinforce level -> the standard level it is worth. floor(N * 2.5)."""
+    return int(somber_level * SOMBER_EQUIV_RATIO)
+
+
+def regular_to_somber(regular_level: int) -> int:
+    """The inverse, rounded DOWN to a somber level that does not overclaim.
+
+    Deliberately the largest somber tier whose equivalent still fits inside `regular_level`, not the
+    nearest: an early guarantee that promises somber 2 (+5) for a regular target of +3 has promised
+    more than it was asked for, which is exactly the over-generosity this conversion exists to end.
+    Returns 0 when even somber 1 (+2) overshoots.
+    """
+    for n in range(ANCIENT_SOMBER_TIER, 0, -1):
+        if somber_to_regular(n) <= regular_level:
+            return n
+    return 0
+
+
+def regular_level_costs(flatten: int):
+    """[(level, tier, stones)] for a standard weapon, levels 1..REGULAR_MAX_LEVEL.
+
+    The ONE place the 2/4/6 reinforce table is written in this module. Both the ladder and the early
+    split read it, so they cannot disagree about what a level costs -- which matters because the
+    split is "the stones +EARLY_TARGET_LEVEL needs" and the ladder is "the stones in the order they
+    are spent", and those are the same table asked two ways.
+    """
+    out = []
+    for lvl in range(1, REGULAR_MAX_LEVEL + 1):
+        tier = (lvl - 1) // 3 + 1
+        vanilla = (2, 4, 6)[(lvl - 1) % 3]
+        out.append((lvl, tier, min(vanilla, flatten) if flatten > 0 else vanilla))
+    return out
+
+
+def regular_stone_tier_seq(flatten: int) -> List[int]:
+    """The ORDER a standard weapon actually consumes smithing-stone tiers in, one entry per stone.
+
+    Walks the game's own per-level cost table: level `lvl` sits in tier `(lvl-1)//3 + 1` and costs
+    2/4/6 within its tier band, each level capped at `flatten` when `flatten_regular_upgrades` is
+    non-zero (the same expression features/upgrades documents and the client mirrors).
+
+    THE ORDER IS THE POINT, which is why this is not `filler_budget._regular_stone_need`. That
+    function returns {tier: total}, which is the right shape for sizing a POOL and the wrong shape
+    for building a LADDER -- it cannot say which stone is the 19th. The two must agree on the
+    totals, and the test asserts `Counter(this) == _regular_stone_need(flatten)` rather than
+    trusting that they do.
+    """
+    seq: List[int] = []
+    for _lvl, tier, cost in regular_level_costs(flatten):
+        seq += [tier] * cost
+    return seq
+
+
+def graded_regular_seq(flatten: int) -> List[int]:
+    """The regular ladder's full rung sequence: the numbered tiers, then the Ancient Dragon step.
+
+    One stone for the last level, because that is what +24 -> +25 costs."""
+    return regular_stone_tier_seq(flatten) + [ANCIENT_REGULAR_TIER]
+
+
+def somber_share_schedule(flatten: int) -> List[float]:
+    """Cumulative fraction of the run at which each somber rung should ARRIVE, 1..10.
+
+    This is the conversion doing its work. Somber tier N is worth regular level
+    `somber_to_regular(N)`, so it belongs wherever the REGULAR ladder reaches that level -- which is
+    the fraction of regular stones spent getting there. Both tracks then climb one shared power
+    curve, and the somber ladder inherits the regular cost table's shape for free (at vanilla 2/4/6
+    the early levels are cheap, so somber's early rungs come sooner; at a flat `flatten` they space
+    out evenly).
+
+    🛑 NOT A UNIFORM STRETCH OVER NINE TIERS, which is what this replaces. Uniform spacing assumes
+    every somber rung is worth the same amount of progress; the equivalence says they are not --
+    somber 1->2 is +2->+5, three regular levels, while somber 2->3 is +5->+7, two. Spacing them
+    evenly puts a weapon ahead of its standard counterpart in some bands and behind in others.
+    """
+    cum, run = {}, 0
+    for lvl, _tier, cost in regular_level_costs(flatten):
+        run += cost
+        cum[lvl] = run
+    cum[REGULAR_CAP_LEVEL] = run + 1            # the Ancient Dragon step costs one stone
+    total = cum[REGULAR_CAP_LEVEL]
+    return [cum[min(somber_to_regular(n), REGULAR_CAP_LEVEL)] / total
+            for n in range(1, ANCIENT_SOMBER_TIER + 1)]
+
+
+def build_somber_ladder(n: int, flatten: int) -> List[int]:
+    """`n` somber rungs, placed by `somber_share_schedule`. PURE, monotone, exactly `n` long.
+
+    🛑 EVERY TIER GETS AT LEAST ONE COPY BEFORE ANY TIER GETS A SECOND. A somber weapon cannot pass
+    a level it holds no stone for, so a SKIPPED tier is a permanent wall rather than thin supply --
+    the failure mode features/filler_budget's `_somber_coverage_floor` was written for, which this
+    has to keep honouring now that it owns the somber distribution. Below one copy per tier the
+    ladder simply truncates: a seed that cannot cover the track should end early, not with holes.
+    """
+    tiers = ANCIENT_SOMBER_TIER
+    if n <= 0:
+        return []
+    if n <= tiers:
+        return list(range(1, n + 1))
+    shares = somber_share_schedule(flatten)
+    spare = n - tiers                    # what is left once every tier has its floor copy
+    out: List[int] = []
+    for i in range(tiers):
+        cum = int(round(shares[i] * spare)) + (i + 1)
+        cum = max(cum, i + 1)                       # the floor, cumulatively
+        cum = min(cum, n - (tiers - 1 - i))         # ...and leave room for the tiers above
+        out += [i + 1] * (cum - len(out))
+    return out
+
+
+def somber_stone_tier_seq() -> List[int]:
+    """Somber weapons cost ONE stone per level and the tier IS the level, so the ladder is simply
+    the tiers in order. `flatten_regular_upgrades` is regular-only, hence no flatten term (the same
+    reason filler_budget._somber_stone_need takes none)."""
+    return list(range(1, SOMBER_TIERS + 1))
+
+
+def stretch_ladder(seq: List[int], n: int) -> List[int]:
+    """Map `seq` onto exactly `n` rungs, order-preserving. PURE.
+
+    n <= len(seq): TRUNCATE. The seed holds fewer stones than the full ladder costs, so the run tops
+    out below the cap -- honestly, and it is stated (see Progressive.set_rules' log line). Same
+    shape as the flask ladder honestly topping out below potency 12 on a small seed.
+
+    n > len(seq): STRETCH, so the top tier is reached at the LAST rung rather than partway through.
+    A big seed holds far more stones than the 48 a +24 costs at flatten 2, and padding the tail with
+    the top tier instead would hand the player the whole ladder at ~40% depth and flatten the curve
+    for the rest of the run -- i.e. reproduce the exact bug this feature exists to fix, just later.
+    The surplus is spent as extra copies of the tier you are on, which is what a generous seed
+    should feel like.
+
+    ⭐ THE ONE OPEN TUNING QUESTION, stated rather than pre-empted. Reaching the top at the LAST rung
+    means reaching it only after the multiworld has handed over every stone it holds -- so a player
+    who finishes without receiving all of them tops out below the cap. Whether that wants headroom
+    (top out at ~85% of copies, say) is a question for `tools/analyze_upgrade_curve.py` and real
+    seeds, not for a constant chosen here. A fudge factor invented before the measurement would be a
+    number defending itself, which is the habit this repo keeps writing gates against.
+    """
+    f = len(seq)
+    if n <= 0 or f == 0:
+        return []
+    if n <= f:
+        return list(seq[:n])
+    return [seq[min(f - 1, (k * f) // n)] for k in range(n)]
+
+
+def _early_segment(name: str, flatten: int):
+    """`(split_at, early_copies)` for one track: how many of `seq` the early guarantee has to cover,
+    and how many pool copies it declares to cover them with.
+
+    Read from features/filler_budget, which OWNS both numbers -- `EARLY_TARGET_LEVEL` (the level a
+    player must be able to afford in the first area) and `EARLY_GUARANTEE_MARGIN` (the "you need to
+    pick up half of them" factor). Deriving them here would be a third copy of a promise that
+    already has one definition and one place that declares it to AP.
+
+    REGULAR: the stones levels 1..EARLY_TARGET_LEVEL cost, summed off the live flatten ladder.
+    SOMBER: one stone per level and the tier IS the level, so the split is the LEVEL COUNT -- +3
+    needs tiers 1, 2 and 3, not three copies of tier 1.
+
+    🛑 THE REGULAR SPLIT IS A SUM OVER LEVELS, NOT `_regular_stone_need(flatten)[1]`. The two are
+    equal today and only by coincidence: tier bands are three levels wide and EARLY_TARGET_LEVEL is
+    3, so "the tier-1 stones" and "the stones +3 costs" name the same set. Raise the target to 5 and
+    the tier-1 reading silently under-covers the promise -- and the entire reason this segment
+    exists is that the early guarantee should not rest on two constants happening to line up.
+    """
+    from .filler_budget import (EARLY_GUARANTEE_MARGIN,  # local: filler_budget imports this module
+                                EARLY_TARGET_LEVEL)
+    if name == PROG_SOMBER_STONE:
+        # THE CONVERSION, not the raw level. `regular_to_somber(3)` is ONE (+2), where the old
+        # reading took three tiers and therefore promised somber +3 == regular +7.
+        split = max(1, regular_to_somber(EARLY_TARGET_LEVEL))
+    else:
+        split = sum(c for lvl, _t, c in regular_level_costs(flatten) if lvl <= EARLY_TARGET_LEVEL)
+    return split, split * EARLY_GUARANTEE_MARGIN
+
+
+def build_ladder(seq, n: int, split_at: int, early_copies: int):
+    """`seq` laid over exactly `n` rungs in two segments. PURE, and non-decreasing by construction
+    (both segments are, and the second starts no lower than the first ends).
+
+    Segment 1 -- the copies the early guarantee declares carry `seq[:split_at]`, i.e. the stones
+    `+EARLY_TARGET_LEVEL` costs. This is what makes the floor structural instead of incidental: the
+    promise is kept because the ladder is built to keep it, not because the tier bands happen to
+    line up.
+
+    Segment 2 -- everything after that stretches `seq[split_at:]` over the remaining copies, so the
+    top tier still arrives at the LAST rung and the back of the run keeps its curve.
+
+    A seed too small to fund even segment 1 gets a plain truncation: there is no early/late split to
+    make when the whole supply is early.
+
+    🛑 `early_copies` IS A FLOOR ON SEGMENT 1, NEVER A CAP. This is the correction to the first
+    version and the reason the function is not simply `stretch(seq[:split], early_copies) + rest`.
+    Handing segment 1 exactly `early_copies` rungs and giving segment 2 everything else means the
+    LOW tiers stop growing with the seed while the high ones keep growing: 119 somber copies came
+    out [2, 2, 2, 19, 19, 19, 19, 19, 18]. Somber costs one stone per level and the tier IS the
+    level, so two copies each of tiers 1-3 caps the seed at TWO somber weapons ever passing +3,
+    with a hundred surplus stones no weapon can reach. (Alaric spotted it in the heatmap, which is
+    what the heatmap is for.)
+
+    So segment 1 takes the LARGER of the early guarantee's margin and its proportional share of the
+    sequence. A thin seed keeps the margin; a rich seed gets a flat spread across the tiers, which
+    is both what vanilla feels like and what lets more than two weapons climb.
+
+    🛑 THE MARGIN STILL COMES OUT OF THE SURPLUS. Segment 1 may never take so many copies that
+    segment 2 cannot cover the rest of the sequence, or a seed holding exactly the full ladder
+    (48 copies at flatten 2) tops out at +21 with no way to say why. That upper clamp is why the
+    expression is a clamp and not a max. (Found by tools/analyze_upgrade_curve.py --selftest.)
+    """
+    if n <= 0 or not seq:
+        return []
+    if n <= split_at:
+        return list(seq[:n])
+    proportional = round(n * split_at / len(seq))
+    ceiling = n - (len(seq) - split_at)
+    early_n = min(max(split_at, early_copies, proportional), max(ceiling, split_at))
+    return stretch_ladder(seq[:split_at], early_n) + stretch_ladder(seq[split_at:], n - early_n)
+
+
+def _stones_on(world) -> bool:
+    from . import graded_progression as _gp   # local: graded_progression does not import this file
+    return _gp.is_on(world)
+
+
+def stone_copy_count(world, name: str) -> int:
+    """Copies of `name` this seed's pool actually holds == the ladder length.
+
+    READ OFF THE REAL POOL, AND CACHED. Neither half of that is incidental.
+
+    READ, because the count is the sum of two independently-sized contributions -- the substituted
+    vanilla stone checks and features/filler_budget's economy reservation -- and only one of them is
+    knowable from this module. Re-deriving it would be a second answer to a question core has
+    already answered, and a ladder one rung out of step with the pool overflows its tail copies to a
+    Lord's Rune client-side: stones silently becoming currency, which is the failure this whole
+    feature is about.
+
+    CACHED (`Progressive.set_rules` fills it), because slot_data runs after fill and by then the
+    copies sit on locations -- some of them in OTHER PLAYERS' worlds under filler_foreign_pct.
+    Counting there would undercount by exactly the share that travelled. set_rules is the one window
+    where create_items has populated the pool and nothing has placed anything yet;
+    features/filler_foreign picked it for the identical reason and documents the AP step order.
+    """
+    if not _stones_on(world):
+        return 0
+    counts = getattr(world, "gf_stone_copies", None)
+    if counts is None:
+        # 🛑 ABSENT IS NOT ZERO. A zero COUNT is a legitimate seed (no `stones` weight, no kept stone
+        # check) and `set_rules` warns about it by name. An absent CACHE means set_rules never ran
+        # for this world, and the consequence is silent and total: the ladder comes out empty while
+        # the pool still holds copies, so the client overflows every one of them to a Lord's Rune --
+        # the seed's entire smithing economy quietly becomes currency. Fail here instead.
+        raise OptionError(
+            "graded_progression: the %r ladder was asked for its length before "
+            "Progressive.set_rules ran, so the pool copy count is unknown. This is a lifecycle bug, "
+            "not a seed condition -- an empty ladder would silently turn every stone in the pool "
+            "into a Lord's Rune client-side." % name)
+    return int(counts.get(name, 0))
+
+
+def stone_ladder(world, name: str) -> List[int]:
+    """The TIER granted by each received copy of `name`: one entry per pool copy, non-decreasing.
+
+    Deterministic (a closed-form stretch of a fixed cost table; `world.random` is not touched) and
+    cached, so create_items, slot_data and the tests all read one answer.
+    """
+    cached = getattr(world, "gf_stone_ladders", None)
+    if cached is not None and name in cached:
+        return cached[name]
+    n = stone_copy_count(world, name)
+    flatten = _flatten(world)
+    if name == PROG_SOMBER_STONE:
+        # The somber track is paced by the equivalence, not by a two-segment stretch of its own
+        # tiers -- see somber_share_schedule.
+        ladder = build_somber_ladder(n, flatten)
+    else:
+        ladder = build_ladder(graded_regular_seq(flatten), n, *_early_segment(name, flatten))
+    if cached is None:
+        cached = {}
+        try:
+            world.gf_stone_ladders = cached
+        except Exception:                      # not a real world (pure callers) -> no cache
+            return ladder
+    cached[name] = ladder
+    return ladder
+
+
+def _flatten(world) -> int:
+    """`flatten_regular_upgrades`, the live stones-per-level cost. Mirrors filler_budget._flatten --
+    same tolerance for a missing option, same reason (pure callers build partial worlds)."""
+    o = getattr(getattr(world, "options", None), "flatten_regular_upgrades", None)
+    return int(o.value) if o is not None else 0
+
+
+def stone_tier_name(name: str, tier: int) -> str:
+    """The vanilla stone a rung hands over. The top rung of each track is an un-numbered item."""
+    if name == PROG_SOMBER_STONE:
+        return ANCIENT_SOMBER if tier >= ANCIENT_SOMBER_TIER else "Somber Smithing Stone [%d]" % tier
+    return ANCIENT_REGULAR if tier >= ANCIENT_REGULAR_TIER else "Smithing Stone [%d]" % tier
+
+
+_STONE_ITEMS = (PROG_SMITHING_STONE, PROG_SOMBER_STONE)
+
 
 # Which toggle activates which progressive items.
 _FLASK_ITEMS = (PROG_FLASK,)
@@ -488,20 +899,35 @@ class Progressive(Feature):
         PROG_STONESWORD_KEY: ItemClassification.useful,
         PROG_SMITHING_BELL: ItemClassification.useful,
         PROG_SOMBER_BELL: ItemClassification.useful,
+        # 🛑 THE STONE LADDERS ARE `filler`, NOT `useful`, AND THE DIFFERENCE IS NOT COSMETIC.
+        # These are the item features/filler_budget allocates BY THE HUNDRED into the filler tail --
+        # they ARE the tiered stones, renamed -- and `useful` is the head of AP's restitempool, so
+        # promoting them would place the entire smithing economy ahead of all filler and move every
+        # seed. item_categories.CATEGORY_CLASS keeps `upgrade_materials` FILLER for exactly this
+        # reason and calls it "the closest call on this table"; the ladder does not reopen it.
+        # Staying filler is also what keeps filler_foreign / keep_local treating them as they treat
+        # the stones today, which is correct here: a rung arriving from a partner world still
+        # arrives in ladder order.
+        PROG_SMITHING_STONE: ItemClassification.filler,
+        PROG_SOMBER_STONE: ItemClassification.filler,
     }
 
     # ---- helpers ------------------------------------------------------------------------------
     def _active_items(self, world) -> List[str]:
         active: List[str] = []
-        flasks = getattr(world.options, "progressive_flasks", None)
         keys = getattr(world.options, "progressive_stonesword_keys", None)
-        bells = getattr(world.options, "progressive_stone_bells", None)
-        if flasks and flasks.value:
+        # 🛑 THE PREDICATES, NOT THE RAW OPTIONS, for the flask and the bells: graded_progression
+        # forces both on and reading `world.options` here would arm the substitution while leaving
+        # the item out of progressiveGrants -- a ladder with no rungs, which is how a feature goes
+        # silently dark. Stonesword keys have no override, so they still read their own option.
+        if _flasks_on(world):
             active += list(_FLASK_ITEMS)
         if keys and keys.value:
             active += list(_KEY_ITEMS)
-        if bells and bells.value:
+        if _bells_on(world):
             active += list(_BELL_ITEMS)
+        if _stones_on(world):
+            active += list(_STONE_ITEMS)
         return active
 
     def _grant_ladder(self, world, name: str) -> List[Dict[str, Any]]:
@@ -537,6 +963,25 @@ class Progressive(Feature):
         if name in _BELL_GRANTS:
             return [{"flags": list(e["flags"])}
                     for e in _BELL_GRANTS[name]]
+        if name in _STONE_ITEMS:
+            # One rung per pool copy; the rung's TIER is the ladder's whole content. `consumed`:
+            # a smithing stone is spent at a grace, so it must be ledgered and granted exactly once.
+            # Shipped as OWNED it would be the 2026-07-12 flask-tear bug again -- the reconciler sees
+            # the spent stone missing and hands it back, forever.
+            out = []
+            for tier in stone_ladder(world, name):
+                stone = stone_tier_name(name, tier)
+                good = ITEM_CATALOG.get(stone)
+                if good is None:
+                    # A tier the catalog cannot resolve is a rung the client cannot grant, i.e. a
+                    # stone silently becoming a Lord's Rune. Fail the generation instead: the whole
+                    # point of the ladder is that every rung lands.
+                    raise OptionError(
+                        "graded_progression: %r is not in the item catalog, so the %s ladder has a "
+                        "rung the client cannot grant. Regenerate the data modules "
+                        "(python greenfield/gen_data.py)." % (stone, name))
+                out.append({"goods": good, "flags": [], "consumed": True})
+            return out
         # Stonesword Keys are spent on Imp Statue seals -> consumed.
         return [{"goods": good | _GOODS_NIBBLE, "flags": [], "consumed": True}
                 for good in _GOODS_LADDERS[name]]
@@ -552,6 +997,55 @@ class Progressive(Feature):
         for name, n in _BELL_EARLY_COUNT.items():
             if name in active and n > 0:
                 early[name] = early.get(name, 0) + n
+
+    def set_rules(self, world) -> None:
+        """Count the stone-ladder copies the pool actually holds, and cache them.
+
+        🛑 NOT `create_items`, and not `slot_data`. AP's order (Main.py) is create_items (115) ->
+        set_rules (118) -> ... -> fill. The two contributions to the count are made by DIFFERENT
+        owners inside create_items -- core.vanilla_substitutions rewrites the item-shuffle walk, and
+        features/filler_budget._draw_stones mints the reserved copies -- so no single point inside
+        create_items has seen both. set_rules is the first point that has, and it is still before
+        anything has been placed. slot_data is too late: by then the copies are on locations, some
+        of them in other players' worlds, and a count taken there is short by exactly the share that
+        travelled. features/filler_foreign.set_rules chose this window for the identical reason.
+        """
+        if not _stones_on(world):
+            return
+        counts: Dict[str, int] = {name: 0 for name in _STONE_ITEMS}
+        for it in world.multiworld.itempool:
+            if it.player == world.player and it.name in counts:
+                counts[it.name] += 1
+        world.gf_stone_copies = counts
+        world.gf_stone_ladders = {}     # the count is known now; drop any zero-count pure-call cache
+        log = logging.getLogger("Greenfield")
+        for name in _STONE_ITEMS:
+            ladder = stone_ladder(world, name)
+            full = (ANCIENT_SOMBER_TIER if name == PROG_SOMBER_STONE
+                    else len(graded_regular_seq(_flatten(world))))
+            if not ladder:
+                # INERT, WITH THE REASON. A recipe with no `stones` weight and a seed that kept no
+                # stone check has no ladder to climb, and the option would otherwise look armed.
+                log.warning(
+                    "[eldenring:%s] graded_progression: %s has ZERO copies in the pool, so that "
+                    "ladder is INERT this seed -- no `stones`/`somber_stones` weight in "
+                    "curated_filler, and no kept check pays one. Add the weight, or keep more "
+                    "regions.", world.player, name)
+            elif len(ladder) < full:
+                # A STATED CAP, NOT A SILENT ONE. The seed is smaller than the full ladder costs, so
+                # the run tops out below the reinforce cap. That is the design (it mirrors enemy
+                # scaling's own ceiling dropping with num_regions, scaling_ladder.auto_ceiling_pct),
+                # but a player who cannot reach +24 deserves to find the reason in the log.
+                log.info(
+                    "[eldenring:%s] graded_progression: %s ladder is %d rung(s) of a full %d, so "
+                    "this seed tops out at tier %d. The ladder length is the copies the pool holds; "
+                    "a larger num_regions or a heavier `stones` weight buys more of it.",
+                    world.player, name, len(ladder), full, ladder[-1])
+            else:
+                log.info(
+                    "[eldenring:%s] graded_progression: %s ladder is %d rung(s), reaching tier %d "
+                    "at the last copy (full ladder %d).",
+                    world.player, name, len(ladder), ladder[-1], full)
 
     def create_items(self, world) -> List:
         # Add the configured number of copies of each active progressive item. core's count-neutral
@@ -571,6 +1065,15 @@ class Progressive(Feature):
                 # in a seed that kept no bell check at all. #539 -- see the module docstring for why
                 # the bells need that floor when the flask's substitution-only model does not.
                 pool += [world.create_item(name) for _ in range(bell_inject_count(world, name))]
+                continue
+            if name in _STONE_ITEMS:
+                # PURE SUBSTITUTION, deliberately -- no injection and no _POOL_COUNTS entry. Both
+                # sources of stone copies (the item-shuffle walk and the economy reservation) are
+                # rewrites of slots that already existed, so the ladder is count-neutral without
+                # this feature adding anything. A top-up like the bells' would be wrong here for the
+                # reason the bells need one and this does not: the bell ladder has a FIXED length
+                # that the vanilla data cannot supply, whereas this ladder's length IS the copy
+                # count, so there is nothing to top up TO.
                 continue
             if name not in _POOL_COUNTS:
                 continue
