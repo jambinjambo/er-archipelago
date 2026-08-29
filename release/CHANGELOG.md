@@ -95,6 +95,24 @@ Entries arrive below as they merge (rule 14: the release notes are part of the c
   somber ONE, not somber three — and it brings both Ancient Dragon stones into the ladders, so the
   two tracks finish level at +25 instead of at +24 and +22-equivalent.
 
+  🛑 THE FLASK LADDER IS STRETCHED OVER THE SEED'S OWN COPY COUNT, exactly as the stone ladders are.
+  The flask holds 22 upgrades (10 charge steps, 12 Sacred Tears, one per rung); the old schedule read
+  the copy ORDINAL, so it packed all 22 into the first 22 copies whatever the seed held. Measured
+  over ten Elden Ring slots of five multiworlds: charges stopped climbing at a median 67% of the run
+  (one slot at 43%), and 59% of the whole flask gain landed in the first half. Stretched: 80% and
+  52%, with the worst slot's front-loading down from 91% to 73%. A seed at or under 22 copies is
+  BYTE-IDENTICAL to before — there is nothing to spread when every copy already pays — so this moves
+  small seeds not at all. The alternating ruling (#798) is unchanged; only the rung POSITIONS move.
+  `flaskLadder` contents change, its shape does not: `CONTRACT_HASH` is untouched and no client
+  pairing is needed.
+
+  It does not remove the surplus, and cannot: a seed drawing 30 flask pickups has 8 the game has no
+  upgrade for. What it removes is the surplus being a DEAD TAIL — the copies are interleaved now —
+  plus the two per ten slots the old schedule burned while an upgrade was still unspent (32 → 30 of
+  232). `docs/measurements/flask-pickup-yield-across-seeds.svg` is the standing evidence that the
+  rest is the game's ceiling. `DLC_ONLY_FLASK_COPIES` drops 24 → 22 for the same reason: one injected
+  copy per upgrade, none wasted.
+
   🛑 THE FLASK IS THE SAME STORY, and the option now actually delivers it. `vanilla_substitutions`
   asked the raw `progressive_flasks` yaml value while every other step on the flask path asked the
   predicate this option overrides — so a graded seed shipped a full-length `flaskLadder` for an item

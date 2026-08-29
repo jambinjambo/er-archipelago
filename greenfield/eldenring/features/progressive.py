@@ -31,13 +31,22 @@ Ships three independent toggles (progressive_flasks default ON; the others defau
     a grace touches every mirror safely, exactly as vanilla does. (An even earlier build shipped the
     tears OWNED rather than consumed; reconcile.rs self-healed a SPENT tear and re-granted unbounded
     until the flask ran past its cap and CTD'd, playtest 2026-07-12 -- hence consumed=True is
-    REQUIRED.) The charge axis's "later pickups buy less" deceleration is baked into the escalating
-    charge-step weights; the potency axis is a flat +1 tear per copy. The ladder's LENGTH follows the
-    kept seed/tear checks (num_regions / DLC scale it for free); when NONE are kept (dlc_only) a fixed
-    12 copies are injected -- enough for both charges (max 14) and potency (max 12, one tear each) to
-    fully max by copy 12. PROG_FLASK stays a pool item and the Golden Seed / Sacred Tear checks still
-    SUBSTITUTE to it; the flask now appears in BOTH progressiveGrants (potency tears) and flaskLadder
-    (charges) at once.
+    REQUIRED.)
+    🛑 THE SCHEDULE IS STRETCHED OVER THE SEED'S OWN COPY COUNT (2026-08-29), the same move
+    `stretch_ladder` makes for the stones and for the same reason: a ladder's rungs belong at
+    fractions of the seed's supply, not at fixed ordinals. The flask holds exactly FLASK_UPGRADES=22
+    upgrades (ten charge steps + twelve tears, one per rung), so the old ordinal schedule packed them
+    into the first 22 copies whatever the seed held -- charges stopped climbing at a median 67% of the
+    run over ten measured slots and 14% of all pickups granted nothing. `flask_schedule` now spreads
+    the twenty-two across all N copies when N > 22 (first upgrade on the first copy, last on the
+    last), and is byte-identical to the old schedule when N <= 22. The surplus beyond 22 is the
+    GAME's ceiling and survives any shape; what changed is that it is interleaved, not a dead tail.
+    The ladder's LENGTH follows the kept seed/tear checks (num_regions / DLC scale it for free); when
+    NONE are kept (dlc_only) DLC_ONLY_FLASK_COPIES are injected -- one per upgrade, so both axes max
+    on the last rung with nothing wasted. PROG_FLASK stays a pool item and the Golden Seed / Sacred
+    Tear checks still SUBSTITUTE to it; the flask appears in BOTH progressiveGrants (potency tears)
+    and flaskLadder (charges) at once, and BOTH are built from `flask_schedule` so they cannot
+    disagree about which copy does what.
   - Progressive Stonesword Keys -> "Progressive Stonesword Key" (good 8000). Each copy grants one
     Stonesword Key; the player spends it on an Imp Statue seal.
   - Progressive Stone Bells -> "Progressive Smithing-Stone Miner's Bell Bearing" (4 tiers) and
@@ -92,9 +101,8 @@ so winnability is unaffected. create_items adds a fixed count of copies per acti
 count-neutral fill (slots = total_locations - len(pool)) means each copy displaces one filler/Rune
 tail item, keeping the pool count-exact.
 """
-import itertools
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from BaseClasses import ItemClassification
 from Options import OptionError, Toggle
@@ -170,26 +178,33 @@ _GOODS_LADDERS: Dict[str, List[int]] = {
 FLASK_CHARGE_SEED_COST: List[int] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]   # vanilla seeds per charge level -> 30
 FLASK_POTENCY_TEAR_COST: List[int] = [1] * 12                        # vanilla tears per potency level -> 12
 
-# Leveled-ladder bounds (the wire contract, contract.flaskLadder): charges climb 2 -> 14 (12 steps),
-# potency 0 -> 12 (12 steps); the last rung is (14, 12). NB the wire spec (2->14, 12 steps) is followed
-# literally; vanilla's own base is 4 charges + 10 seed-bought steps (tools/upgrade_costs FLASK_BASE_
-# CHARGES) -- see the deliverable note. Charge steps carry ESCALATING weights so the ladder rises fast
-# early and slow late (the inherited deceleration). The POTENCY axis climbs a flat +1 PER RUNG (capped
-# at 12): potency is granted as one consumed Sacred Tear per copy, so a rung MUST NOT advance potency
-# by more than 1 (a +2 rung would need 2 tears at one copy = 2 ledger entries at one stream index = the
-# batching the consumed-goods ledger forbids). See flask_ladder() -- potency is computed directly as
-# min(rung//2, 12), NOT distributed through _cum_levels like charges.
+# Leveled-ladder bounds (the wire contract, contract.flaskLadder): charges climb 4 -> 14, potency
+# 0 -> 12. The POTENCY axis may advance AT MOST +1 PER RUNG: potency is granted as one consumed
+# Sacred Tear per rung, so a +2 rung would need 2 tears at one copy = 2 ledger entries at one stream
+# index = the batching the consumed-goods ledger forbids.
 FLASK_CHARGES_BASE = 4
 FLASK_CHARGES_MAX = 14
 FLASK_POTENCY_MAX = 12
-_CHARGE_STEP_WEIGHTS: List[int] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6]   # 12 steps (2 -> 14), escalating
-_POTENCY_STEP_WEIGHTS: List[int] = list(FLASK_POTENCY_TEAR_COST)          # 12 flat steps; documentation only
+
+# ⭐⭐⭐ THE NUMBER THAT GOVERNS THIS WHOLE LADDER: the flask has exactly TWENTY-TWO upgrades in it.
+# Ten charge steps (4 -> 14) plus twelve potency steps (0 -> 12), and a rung may carry only one of
+# them (see the +1-per-rung rule above; a rung doing both would still consume two of the twenty-two).
+# So a seed holding more than 22 PROG_FLASK copies CANNOT make every copy pay -- that is the game's
+# ceiling, not a scheduling failure, and no ladder shape can move it. What a ladder shape CAN decide
+# is WHERE the twenty-two land, which is the whole of the change below.
+FLASK_CHARGE_STEPS = FLASK_CHARGES_MAX - FLASK_CHARGES_BASE     # 10
+FLASK_POTENCY_STEPS = FLASK_POTENCY_MAX                         # 12
+FLASK_UPGRADES = FLASK_CHARGE_STEPS + FLASK_POTENCY_STEPS       # 22
+
+FLASK_CHARGE = "charge"     # this rung advances the reconciled charge target (flaskLadder)
+FLASK_TEAR = "tear"         # this rung grants one consumed Sacred Tear (progressiveGrants)
 
 # When NO Golden Seed / Sacred Tear check is kept (dlc_only, or a num_regions seed that seals every
-# flask region), there are no substituted PROG_FLASK copies -- so inject a fixed count of copies and
-# build a ladder that maxes by the last rung. 12 copies: one Sacred Tear per copy needs 12 copies to
-# reach potency 12 under an alternating schedule. Twenty-four copies fully max both axes.
-DLC_ONLY_FLASK_COPIES = 24
+# flask region), there are no substituted PROG_FLASK copies -- so inject a fixed count and build a
+# ladder that finishes on the last rung. FLASK_UPGRADES exactly: one copy per upgrade the flask has,
+# so both axes max and not one injected copy is wasted. (It was 24 under the old strict-alternating
+# schedule, which needed two extra copies to reach potency 12 and then wasted them.)
+DLC_ONLY_FLASK_COPIES = FLASK_UPGRADES
 
 
 def _flasks_on(world) -> bool:
@@ -277,18 +292,75 @@ def flask_inject_count(world) -> int:
     return max(0, flask_copy_count(world) - _substituted_flask_copies(world))
 
 
-def _cum_levels(n_rungs: int, weights: List[int]) -> List[int]:
-    """Cumulative level after each of `n_rungs` rungs, distributing len(weights) unit level-ups across
-    the rungs proportionally to cumulative WEIGHT (heavier/later steps take more rungs). Monotonic
-    non-decreasing; reaches len(weights) EXACTLY at the last rung (progress is scaled to hit the final
-    threshold only at rung n_rungs). n_rungs < len(weights) => some rungs advance multiple levels."""
-    thresholds = list(itertools.accumulate(weights))   # thresholds[j] = cost to REACH level j+1
-    total = thresholds[-1]
-    out: List[int] = []
-    for r in range(1, n_rungs + 1):
-        spent = total * r / n_rungs
-        lvl = sum(1 for t in thresholds if t <= spent + 1e-9)   # +eps so the last rung clears the top
-        out.append(lvl)
+# (`_cum_levels` lived here: a weighted distribution of level-ups across rungs, written for an
+# escalating charge curve. It was never reachable -- `flask_ladder` computed its targets closed-form
+# from the copy ordinal and never called it -- and `flask_schedule` below is what the idea became.
+# Deleted 2026-08-29 rather than left as a second, divergent answer to the same question.)
+
+
+def flask_event_seq() -> List[str]:
+    """The flask's twenty-two upgrades, in the order they are handed out.
+
+    ALTERNATING, which is ruling #798 and is kept: Charge, tear, Charge, tear. The two axes are not
+    the same length, so alternation runs out after ten pairs and the last two rungs are the two
+    remaining tears. Nothing about that ordering changed here -- only where the rungs SIT.
+    """
+    out: List[str] = []
+    charges, tears = FLASK_CHARGE_STEPS, FLASK_POTENCY_STEPS
+    while charges or tears:
+        if charges:
+            out.append(FLASK_CHARGE)
+            charges -= 1
+        if tears:
+            out.append(FLASK_TEAR)
+            tears -= 1
+    return out
+
+
+def flask_schedule(n: int) -> List[Optional[str]]:
+    """What each of `n` received copies does: FLASK_CHARGE, FLASK_TEAR, or None (grants nothing).
+
+    🛑 THIS IS THE STRETCH, and it is the same move `stretch_ladder` makes for the stones: a ladder's
+    rungs belong at fractions of the seed's OWN supply, not at fixed ordinals. The old schedule read
+    the copy ORDINAL -- copy 1 charge, copy 2 tear, ... -- so the twenty-two upgrades were always
+    packed into the first twenty-two copies whatever the seed held. Measured over ten slots of five
+    multiworlds (docs/measurements/flask-progression-across-seeds.svg): charges stopped climbing at a
+    median 67% of the run and one slot was finished at 43%, while 14% of all pickups arrived after
+    both axes had capped and granted nothing. A flat tail and a dead tail, from one cause.
+
+    Two regimes, and the boundary is FLASK_UPGRADES:
+
+      * n <= 22 -- every copy pays, and the schedule is the first `n` upgrades of the alternating
+        sequence. This is EXACTLY what the old code produced for such a seed, so small seeds do not
+        move at all. (They cannot be improved anyway: there is nothing to spread when every rung is
+        already carrying an upgrade.)
+      * n > 22 -- the twenty-two upgrades are spread evenly across the n copies, first upgrade on the
+        first copy (so a fresh character still sees the flask change immediately, the reason the
+        first charge rung is one ABOVE the vanilla allocation) and last upgrade on the last copy (so
+        the ladder finishes when the run does). The n - 22 copies in between grant nothing -- see
+        FLASK_UPGRADES: that surplus is the game's ceiling and exists under any schedule. What
+        changes is that it is INTERLEAVED rather than dumped at the end.
+
+    Pure and deterministic: no rng, no world.
+    """
+    seq = flask_event_seq()
+    if n <= 0:
+        return []
+    if n <= len(seq):
+        return list(seq[:n])
+    out: List[Optional[str]] = [None] * n
+    # `(j * (n-1)) // (len(seq)-1)` puts upgrade 0 on copy 0 and the last upgrade on copy n-1. The
+    # step is (n-1)/21 >= 1 in this branch, so the floors are strictly increasing and no two
+    # upgrades can land on one copy -- which MATTERS: a collision would silently drop an upgrade,
+    # and if the dropped one were a tear it would also break the +1-potency-per-rung rule for the
+    # copy that kept both. Checked rather than assumed.
+    for j, event in enumerate(seq):
+        out[(j * (n - 1)) // (len(seq) - 1)] = event
+    placed = sum(1 for e in out if e is not None)
+    if placed != len(seq):
+        raise ValueError(
+            "flask_schedule(%d) placed %d of %d upgrades -- two landed on one copy and one was "
+            "lost. The spread is wrong, not the caller." % (n, placed, len(seq)))
     return out
 
 
@@ -308,18 +380,16 @@ def flask_ladder(world) -> List[Dict[str, int]]:
     if n <= 0:
         world.gf_flask_ladder = []
         return []
-    # Alternating ruling (#798): odd copies advance CHARGES, even copies grant +1 POTENCY. Derive
-    # both cumulative targets from the copy ordinal so reconnect/retry cannot shift the sequence.
-    # The first charge target is 5, one above the vanilla starting allocation of 4; it can therefore
-    # never be silently absorbed by a fresh character. Each later scheduled charge advances one more
-    # observable step until the vanilla cap. Potency is one consumed Sacred Tear on each even copy.
-    charge_copies = (n + 1) // 2
-    charge_targets = [min(FLASK_CHARGES_BASE + ordinal, FLASK_CHARGES_MAX)
-                      for ordinal in range(1, charge_copies + 1)]
+    # The cumulative state after each copy, walked straight off `flask_schedule`. Derived from the
+    # copy ORDINAL and nothing else, so reconnect/retry cannot shift the sequence -- the property the
+    # old closed form had, kept.
+    charges, potency = FLASK_CHARGES_BASE, 0
     ladder = []
-    for copy in range(1, n + 1):
-        charges = charge_targets[(copy - 1) // 2]
-        potency = min(copy // 2, FLASK_POTENCY_MAX)
+    for event in flask_schedule(n):
+        if event == FLASK_CHARGE:
+            charges = min(charges + 1, FLASK_CHARGES_MAX)
+        elif event == FLASK_TEAR:
+            potency = min(potency + 1, FLASK_POTENCY_MAX)
         ladder.append({"charges": charges, "potency": potency})
     world.gf_flask_ladder = ladder
     return ladder
@@ -859,10 +929,17 @@ _BELL_ITEMS = (PROG_SMITHING_BELL, PROG_SOMBER_BELL)
 class ProgressiveFlasks(Toggle):
     """On (default): every Golden Seed and Sacred Tear check pays out a single "Progressive Flask
     Upgrade" item instead, one-for-one. Copies alternate deterministically: Charge, then +1 potency,
-    then Charge, then +1, continuing in that order. The first copy visibly raises total charges above
-    the vanilla starting allocation; +1 copies grant a Sacred Tear to spend at a grace. Off: seeds
-    and tears stay discrete pickups at their shuffled locations. Flasks never gate logic, so either
-    way the seed is always winnable."""
+    then Charge, then +1. The first copy visibly raises total charges above the vanilla starting
+    allocation; potency copies grant a Sacred Tear to spend at a grace.
+
+    The upgrades are spread across however many copies your seed actually has, so the flask keeps
+    climbing until the end of the run rather than finishing early. The flask holds 22 upgrades in
+    total (ten flask charges, twelve potency steps), so a seed with more Golden Seed and Sacred Tear
+    checks than that has some copies left over; those are spaced out through the run and arrive as
+    spacers that grant nothing.
+
+    Off: seeds and tears stay discrete pickups at their shuffled locations. Flasks never gate logic,
+    so either way the seed is always winnable."""
     display_name = "Progressive Flasks"
     default = 1
 
@@ -952,13 +1029,15 @@ class Progressive(Feature):
         # in-place potency item-id swap CTD'd on death against the half-updated mirrors (playtest
         # 2026-07-19); granting a tear + a grace upgrade is the proven safe path.
         if name == PROG_FLASK:
-            # Keep one progressiveGrants rung per pool copy so the tier ordinal is the authoritative
-            # schedule. Odd copies are explicit no-ops here (their charge effect rides flaskLadder);
-            # even copies grant exactly one consumed Sacred Tear until potency caps.
+            # One progressiveGrants rung per pool copy, read from THE SAME `flask_schedule` the
+            # flaskLadder is built from -- the two wires describe one item and must not be able to
+            # disagree about which copy does what. A charge rung is an explicit no-op here (its
+            # effect rides flaskLadder); a tear rung grants exactly one consumed Sacred Tear; a
+            # copy past the flask's twenty-two upgrades grants nothing on either wire.
             return [
                 ({"goods": _GOOD_SACRED_TEAR | _GOODS_NIBBLE, "flags": [], "consumed": True}
-                 if copy % 2 == 0 and copy // 2 <= FLASK_POTENCY_MAX else {"noop": True})
-                for copy in range(1, flask_copy_count(world) + 1)
+                 if event == FLASK_TEAR else {"noop": True})
+                for event in flask_schedule(flask_copy_count(world))
             ]
         if name in _BELL_GRANTS:
             return [{"flags": list(e["flags"])}

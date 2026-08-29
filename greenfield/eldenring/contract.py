@@ -195,9 +195,10 @@ def _chk_flask_ladder(v):
     sets potency from the consumed Sacred Tears the SAME item grants via progressiveGrants (one tear
     per copy), not from this ladder. So the flask is a HYBRID that rides BOTH wires (charges here,
     potency in progressiveGrants); this is intentional and non-overlapping. (Range/monotonic invariants
-    -- charges 2..14, potency 0..12, non-decreasing, charges reaching max at the last rung -- are
-    guarded producer-side in features/progressive.py and its tests; the wire shape check here is the
-    container + int fields.)"""
+    -- charges 4..14, potency 0..12, non-decreasing, at most one axis advancing by at most one step
+    per rung, and both axes finishing on the LAST rung whenever the seed holds at least the 22 copies
+    the flask has upgrades for -- are guarded producer-side in features/progressive.py and its tests;
+    the wire shape check here is the container + int fields.)"""
     if not isinstance(v, (list, tuple)):
         return "expected [{charges:int, potency:int}, ...]"
     for e in v:
@@ -1272,10 +1273,14 @@ CONTRACT = (
                 "0..12} for the flask after receiving (i+1) Progressive Flask Upgrade copies. The "
                 "client RECONCILES the CHARGE target directly (a leveled state); POTENCY here is "
                 "documentation -- the client sets potency from the consumed Sacred Tears the same item "
-                "grants via progressiveGrants (one tear per copy). Charges monotonic non-decreasing, "
-                "reaching 14 at the last rung; potency = min(rung,12); length == the PROG_FLASK copies "
-                "this seed has (substituted Golden Seed / Sacred Tear checks kept, or a fixed 12 "
-                "injected when none are kept -- dlc_only). The flask is a HYBRID riding BOTH wires "
+                "grants via progressiveGrants, one tear per potency step). Both axes are monotonic "
+                "non-decreasing and advance by AT MOST ONE STEP PER RUNG, and at most one axis moves "
+                "per rung. The schedule is STRETCHED over the seed's copy count: the flask holds "
+                "exactly 22 upgrades (10 charge steps + 12 tears), so a seed with <= 22 copies spends "
+                "every one of them and a seed with more spreads the 22 across all of them (first "
+                "upgrade on copy 1, last on copy N) with the surplus emitted as explicit no-op rungs. "
+                "length == the PROG_FLASK copies this seed has (substituted Golden Seed / Sacred Tear "
+                "checks kept, or DLC_ONLY_FLASK_COPIES injected when none are kept -- dlc_only). The flask is a HYBRID riding BOTH wires "
                 "(charges here, potency in progressiveGrants) -- intentional and non-overlapping. The "
                 "charge axis is a leveled state (no spend to heal); the potency axis went back to "
                 "granted/ledgered Sacred Tears because the in-place potency item-id swap CTD'd on death "

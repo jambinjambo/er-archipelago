@@ -488,11 +488,21 @@ Elden Ring:
   pool_builder_pct_ashes_of_war: 0
 
   # Every Golden Seed and Sacred Tear check pays out a single "Progressive
-  # Flask Upgrade" item instead, one-for-one. Each copy you receive grants a
-  # seed or a tear on an interleaved schedule -- you still spend it at a grace
-  # at the game's own escalating price, but upgrades (Sacred Tears included)
-  # arrive on a steady cadence instead of 13 silent flat pickups. Off: seeds
-  # and tears stay discrete pickups at their shuffled locations.
+  # Flask Upgrade" item instead, one-for-one, and copies alternate: one raises
+  # your flask COUNT directly (no seed to spend, no escalating price), the next
+  # hands you a Sacred Tear to spend at a grace as usual.
+  #
+  # The upgrades are spread over however many copies your seed actually has, so
+  # the flask keeps climbing to the end of the run instead of finishing early.
+  # The flask holds 22 upgrades in total (ten charges, twelve potency steps), so
+  # a seed with more Golden Seed and Sacred Tear checks than that has copies
+  # left over; those are spaced through the run and arrive as spacers that grant
+  # nothing. Fewer regions means fewer flask checks and fewer spares.
+  #
+  # Off: seeds and tears stay discrete pickups at their shuffled locations, and
+  # you pay the game's own escalating seed price -- which in practice means the
+  # flask stalls partway. Flasks never gate logic, so either way the seed is
+  # winnable.
   progressive_flasks: true
 
   # Smithing stones by SHOP TIER instead of by luck. On: the Smithing-Stone

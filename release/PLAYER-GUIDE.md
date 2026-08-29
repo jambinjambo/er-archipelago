@@ -217,8 +217,15 @@ actually hit:
   Rune by design.
 - **A Golden Seed or Sacred Tear check gave a "Progressive Flask Upgrade."**
   That's `progressive_flasks` (on by default): flask upgrades arrive on a
-  steady cadence instead of 13 silent flat pickups. You still spend them at a
-  grace as usual.
+  steady cadence instead of 13 silent flat pickups. Odd copies raise your flask
+  count; even ones hand you a Sacred Tear to spend at a grace as usual.
+- **A "Progressive Flask Upgrade" arrived and nothing happened.** Not a bug, and
+  only possible on a big seed. The flask has exactly 22 upgrades in it -- ten
+  flask charges (4 -> 14) and twelve potency steps -- so a seed with more Golden
+  Seed and Sacred Tear checks than that has more copies than upgrades. Those
+  spare copies are spread evenly through the run rather than piled at the end,
+  so the flask keeps climbing to the finish; the price is that some individual
+  pickups are spacers. Fewer regions means fewer flask checks and fewer spares.
 - **Great Runes aren't marked progression.** They're "useful" unless your goal
   is `great_runes`, in which case they become progression and are placed
   reachably.

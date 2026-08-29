@@ -122,6 +122,13 @@ Slot 2 spends half the run at base POTENCY as well, drawing no Sacred Tear at al
 tears exist in the game against 43 seeds). The ladder cannot run out that way: every even copy is a
 tear by construction, and the same pickups buy slot 1 four more charges and double the potency.
 
+...but "it converts better" is not the same claim as "it ramps", and measuring the second one is
+what turned up the flask ladder's own version of cause 4. Its rungs were ABSOLUTE ORDINALS while the
+stone ladders' are fractions of the seed's supply, so over ten slots of five multiworlds charges
+stopped climbing at a median 67% of the run and 59% of the total flask gain landed in the first half
+-- barely better than the 63% of an unpaced seed. `progressive.flask_schedule` stretches it now
+(80% and 52%), which is the same fix in the same shape, applied to the track this option had been
+treating as already solved. See docs/measurements/flask-progression-across-seeds.svg.
 
 🛑 THREE HONEST CAVEATS ON THAT TABLE.
   * SPHERE 0 IS MOST OF A SIX-REGION SEED, so every row's opening overstates the real one: a fill
