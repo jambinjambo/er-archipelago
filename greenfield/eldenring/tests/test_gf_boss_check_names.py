@@ -41,12 +41,40 @@ def _rows():
     return [(reg,) + tuple(t) for reg, lst in LOCATIONS.items() for t in lst]
 
 
+# 🛑 THE SWEEP CLAUSE IS PART OF THE CHECK NAME AND ITS WORDING HAS MOVED ONCE ALREADY.
+# gen_data appends "..., may be sweep-granted by <Boss> (<map>)" to a name at bake time (#936
+# reworded it from a grant to a statement of ELIGIBILITY). It is not the check's DESCRIPTOR -- the
+# descriptor is the "where/from whom" clause this file is about -- so it has to come off before the
+# comparison, or every worked example reads back as "Wormface, may be sweep-granted by Wormface".
+# That is exactly how this file broke when the rewording merged in.
+_SWEEP_CLAUSE = re.compile(r",\s*may be sweep-granted by\b.*$")
+
+
 def _descriptor(name):
     """The middle of `Region :: Item - <desc> [f<flag>]`, or "" when the check ships bare."""
     body = name.split(" :: ", 1)[1] if " :: " in name else name
     body = re.sub(r"\s*\[f-?\d+\]\s*$", "", body)
     body = re.sub(r"\s*\(region unconfirmed\)\s*$", "", body)
+    body = _SWEEP_CLAUSE.sub("", body)
     return body.split(" - ", 1)[1] if " - " in body else ""
+
+
+def test_the_sweep_clause_still_reads_the_way_this_file_strips_it():
+    """A WITNESS for _SWEEP_CLAUSE, and the gate this file did not have.
+
+    The wording is generated, not curated, so a rewording lands silently in every check name at
+    once -- 4,000-odd of them. Without this, the next one would not break the strip loudly; it would
+    just leave the clause glued onto every descriptor and fail the worked examples with a confusing
+    diff. If this test is what goes red, update the pattern above; if the worked examples go red on
+    their own, the JOIN is what broke."""
+    swept = [r for r in _rows() if _SWEEP_CLAUSE.search(r[1])]
+    assert len(swept) > 500, (
+        "only %d check name(s) carry a ', may be sweep-granted by ...' clause -- either the sweep "
+        "layer is off or gen_data has REWORDED it, and _descriptor is now stripping nothing"
+        % len(swept))
+    for r in swept[:50]:
+        assert "sweep-granted" not in _descriptor(r[1]), (
+            "the clause survives the strip in %r -> %r" % (r[1], _descriptor(r[1])))
 
 
 def _boss_tagged():
