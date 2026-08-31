@@ -175,11 +175,18 @@ The player-installed apworld on this box lives at
   so `ChrIns` / `PlayerGameData` still carry 1.16-era layouts. `max_hp_flask` sits near offset
   `0x9c`, well ahead of the first field #321 moved, so `flask.rs` is unaffected — but rebasing
   the fork onto `eae96df` is the standing follow-up if anything reads garbage in-game.
-  📍 That pin is shared with two other Elden Ring projects on this box (`CustomEROverlay`,
-  `bingus`). The one place recording the game version and the revision answering for it is
-  **`../EldenRingMods/_shared/GAME-VERSION.md`**; `../EldenRingMods/README.md` indexes all three.
-  This repo keeps its own git `rev =` pin rather than sharing a checkout — a release has to be
-  able to name the revision that answered for it (#241).
+  📍 **This pin is NO LONGER shared.** As of 2026-08-31 `CustomEROverlay` and both `bingus`
+  mods moved to `jambinjambo/fromsoftware-rs @ eae96df` (upstream PR #321, the 1.17 struct
+  corrections), which serves **Tarnished only** — its 2.6.2.x arms are gone. This client stayed on
+  `8c0afd1b` deliberately: it ships to players and pins an exact apworld version, so a release has
+  to be able to name the revision that answered for it (#241), and 8c0afd1b still serves both
+  executables.
+  ⚠ Consequence: `../EldenRingMods/_shared/fromsoftware-rs` is checked out on `eae96df` and
+  therefore **does not describe what this client compiles against**. Check out its
+  `tarnished-2700` branch (`8c0afd1`) before reading the library to understand this crate.
+  ⚠ This client is thus still on PR #320, not #321 — `ChrIns` / `PlayerGameData` keep 1.16-era
+  layouts. `max_hp_flask` near `0x9c` sits ahead of the first moved field, so `flask.rs` is fine;
+  nothing else is audited. `../EldenRingMods/_shared/GAME-VERSION.md` records both pins.
 - **Local work not yet in a release window**: `graded_progression` (opt-in; stones,
   somber stones, flasks and bells as paced ladders) and the stretched flask schedule
   (`progressive.flask_schedule`, which changes `progressive_flasks` — ON BY DEFAULT).
