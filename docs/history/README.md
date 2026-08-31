@@ -24,7 +24,7 @@ The live sources of truth are:
 - `SPEC-gf-configurable-big-ticket-20260708.md` — the retired "big-ticket" concept; replaced by `features/progression_surface.py`.
 - `SYNC-RUNBOOK.md` — multiworld join via the old bake workflow. Current: `release-v0.2/SETUP.md`.
 - `DLC-AREA-ID-CAPTURE.md` — area-id capture against the retired apworld.
-- `RELEASE-CHECKLIST-v0.1.md` — the v0.1 ship checklist (renamed to avoid colliding with the live `RELEASE-CHECKLIST-v0.2.md`).
+- `RELEASE-CHECKLIST-v0.1.md`, `RELEASE-CHECKLIST-v0.2.md` — the v0.1 and v0.2 ship checklists. Both superseded by the live `RELEASE-CHECKLIST-v0.3.md` at the repo root.
 
 ### Superseded design (matt-free MVP · pre-spine-v2 carve)
 - `SPEC-region-capstone-model-20260708.md`, `WIRING-region-capstone-v0.2.md` — folded Leyndell into Altus at 21 regions; overturned by spine v2 (Leyndell goal, 31 regions).

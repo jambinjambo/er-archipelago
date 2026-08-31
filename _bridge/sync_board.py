@@ -15,7 +15,7 @@ LINKING: an issue is matched to a card by (1) card.issue number, else (2) a hidd
   marker in the body, else (3) normalized title. First run adopts pre-existing issues by title and
   stamps the marker so later matching survives title/desc edits.
 
-Regenerates er-archipelago-kanban.html from board.template.html each run.
+Regenerates ../er-archipelago-kanban.html (repo root) from board.template.html each run.
 
 Stdlib only (urllib) - no pip install. Runs anywhere python3 does.
 
@@ -373,7 +373,10 @@ def main(argv=None):
     cards_path = here / "cards.json"
     tpl_path = here / "board.template.html"
     snap_path = here / ".sync-snapshot.json"
-    board_out = args.board_out or (here / "er-archipelago-kanban.html")
+    # The board lives at the REPO ROOT: that is the path TODO.md and README.md tell you to
+    # open. It used to default to _bridge/, which meant every run left a SECOND board here
+    # that then drifted from the root one. One board, one path.
+    board_out = args.board_out or (here.parent / "er-archipelago-kanban.html")
 
     token = os.environ.get("GH_TOKEN")
     if not token:

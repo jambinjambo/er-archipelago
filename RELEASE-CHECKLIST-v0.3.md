@@ -6,7 +6,7 @@ copied forward from the v0.2 checklist, and nothing is marked green on the stren
 message.
 
 > **The rule for this file is unchanged: RUN the gate, don't read it.** It is inherited from
-> `RELEASE-CHECKLIST-v0.2.md`, which was itself rewritten because the previous one had gone stale in
+> `docs/history/RELEASE-CHECKLIST-v0.2.md`, which was itself rewritten because the previous one had gone stale in
 > both directions.
 
 ---

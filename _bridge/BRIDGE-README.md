@@ -15,7 +15,7 @@ be tested offline. Runs on your machine — this repo's sandbox can't reach the 
 | `sync_board.py` | The bridge: links issues, pushes content, merges open/closed, pulls state, regenerates the board. |
 | `test_sync_board.py` | Offline tests (mocked GitHub). `python sync_board.py --self-test`. |
 | `.sync-snapshot.json` | Auto-written. Remembers last-synced open/closed per card so a change on *either* side is detected. Don't hand-edit. |
-| `er-archipelago-kanban.html` | Generated. The board you open. (Use `--board-out` to write it elsewhere, e.g. the repo root.) |
+| `../er-archipelago-kanban.html` | Generated, at the **repo root** — the board you open. (`--board-out` writes it elsewhere.) |
 
 ## Model — board-authoritative, pull state
 
@@ -43,7 +43,7 @@ Other flags:
 ```bash
 python sync_board.py --mode push                       # only board -> issues
 python sync_board.py --mode pull                        # only issues -> board
-python sync_board.py --board-out ../er-archipelago-kanban.html   # write the board to the repo root
+python sync_board.py --board-out ./er-archipelago-kanban.html    # write the board somewhere else
 ```
 
 ## How you edit the board

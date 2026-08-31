@@ -105,6 +105,9 @@ patch_*.py
 # --- personal scratch yamls (shareable config = EldenRing-MASTER-template.yaml) ---
 /EldenRing-Alaric.regionlock.yaml
 /EldenRing-AlaricBase.yaml
+# Same rule, Jambo's play configs. These are ACTIVE seeds' yamls, not scratch: they sit at the
+# root because build.ps1 -Generate stages from here. The shareable template is release/EldenRing.yaml.
+/Jambo*-EldenRing*.yaml
 
 # --- internal memory mirrors: do NOT commit to the public repo ---
 /trust-alaric-cleared-layers.md
