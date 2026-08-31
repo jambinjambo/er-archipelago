@@ -155,14 +155,31 @@ The player-installed apworld on this box lives at
   (#993), the three ability-lock options (#980) and `region_sync` (#1005); 0.5.2/0.5.3
   added the Tarnished Pack checks and the ability-lock default flip. All own ground a
   local option must not duplicate — check them before adding a lever.
-- 🛑 **THE CLIENT SUBMODULE IS BEHIND ITS OWN GITLINK.** The gitlink is `6bba5c31`
-  (whose `contract_gen.rs` expects apworld **0.5.3**, matching this tree), but the
-  working checkout is still `3967d512` (`v0.2.18.diag-773-g3967d51`), which expects
-  **0.5.1** — so the client built from what is on disk right now would REFUSE a seed
-  generated from this tree. It also carries uncommitted Rust (`core.rs`,
-  `reconcile_io.rs`, `region_lock.rs`). `git submodule status` prints a leading `+`
-  for exactly this. Commit or stash that Rust FIRST, then `git submodule update`, before
-  trusting a cargo gate or a version handshake.
+- **The client submodule sits ON its gitlink** `6bba5c31` (`v0.2.18.diag-848-g6bba5c3`),
+  resolved 2026-08-29. Its `contract_gen.rs` expects apworld **0.5.3**, matching this tree, and
+  it builds clean: `cargo build --release --target x86_64-pc-windows-msvc -p eldenring-archipelago`.
+  ⚠ The submodule currently sits ONE COMMIT AHEAD of that gitlink, on branch
+  **`feat/region-unlock-announce`** (`1dcf0fb`) — the region-unlock-announce WIP that used to be
+  uncommitted here (`core.rs`, `reconcile_io.rs`, `region_lock.rs`), cherry-picked onto
+  `6bba5c31`. It compiles clean on the 1.17 pin. `git status` reads `M` on the submodule for
+  exactly this; bump the gitlink when the branch is reviewed, or `git submodule update` to drop
+  back to `6bba5c31`. The pre-rebase copy is still on `wip/region-unlock-silent` (`60575cd`).
+- 🛑 **ELDEN RING 1.17 / Tarnished landed 2026-08-27; the game exe is now `2.7.0.0`.**
+  `fromsoftware-rs` picks its RVA table by an EXACT match on that PE version string and
+  `rva::get()` **panics** on anything else — a pin is what decides whether the client loads.
+  `6bba5c31` pins `4laric/fromsoftware-rs @ 8c0afd1b` = upstream `0b44ede3` (PR #320, the
+  generated 1.17.0 tables) plus one commit restoring the 2.6.2.x tables that PR deleted, so this
+  build serves BOTH executables; `er-logic/src/game_version.rs` carries `REQUIRED_WW`
+  **and** `REQUIRED_WW_TARNISHED`, and `game_version_gate.rs`'s arms are in lockstep.
+  ⚠ That fork is based on PR #320, NOT #321 (`eae96df`, "[ER] Update some strucs for 1.17"),
+  so `ChrIns` / `PlayerGameData` still carry 1.16-era layouts. `max_hp_flask` sits near offset
+  `0x9c`, well ahead of the first field #321 moved, so `flask.rs` is unaffected — but rebasing
+  the fork onto `eae96df` is the standing follow-up if anything reads garbage in-game.
+  📍 That pin is shared with two other Elden Ring projects on this box (`CustomEROverlay`,
+  `bingus`). The one place recording the game version and the revision answering for it is
+  **`../EldenRingMods/_shared/GAME-VERSION.md`**; `../EldenRingMods/README.md` indexes all three.
+  This repo keeps its own git `rev =` pin rather than sharing a checkout — a release has to be
+  able to name the revision that answered for it (#241).
 - **Local work not yet in a release window**: `graded_progression` (opt-in; stones,
   somber stones, flasks and bells as paced ladders) and the stretched flask schedule
   (`progressive.flask_schedule`, which changes `progressive_flasks` — ON BY DEFAULT).
@@ -299,6 +316,7 @@ matter how high it goes.
 | File | Use it for |
 |---|---|
 | `docs/ARCHITECTURE.md` | **how the components interact** — start here for orientation |
+| `docs/ITEM-CLASSIFICATION.md` | the three item taxonomies (category / class / AP classification), who owns each, and what `keep_local` + `filler_foreign_pct` read |
 | `CONTRIBUTING.md` | the quality bar; "it looks right" is not a pass |
 | `greenfield/CONTRACT.md` | every slot_data key, its shape, producer, and Rust consumer |
 | `PROVENANCE.md` | what may not enter the tree, and the gate for each rule |
